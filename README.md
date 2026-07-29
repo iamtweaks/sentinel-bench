@@ -130,3 +130,4 @@ Ver `docs/RUNBOOK.md` para detalles y troubleshooting.
 MIT. Hecho para portfolio Blue Team. Si encontrás algo que pueda ser sensible
 (infra corporativa, IoCs privados, datos laborales), abrí un issue o contactame
 directamente.
+<!-- branch: feat/sentinel-bench-mvp | last commit on this branch differs from main -->
