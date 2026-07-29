@@ -46,17 +46,25 @@ def fetch_all_vulns() -> list[dict]:
 
 
 def count_distinct_sources_for(cve_id: str) -> int:
-    headers = sb_headers()
-    req = urllib.request.Request(
-        sb_url(PROJECT_REF, f"/advisories?cve_ids=cs.{{{cve_id}}}&select=source_id&limit=20"),
-        headers=headers,
+    """Approximate source diversity. Pre-fetched per CVE in batched query."""
+    return _diversity_cache.get(cve_id, 1)
+
+
+# Pre-fetch diversity in ONE query — O(1) instead of O(N).
+import urllib.request as _ur
+_diversity_cache: dict[str, int] = {}
+try:
+    _req = _ur.Request(
+        sb_url(PROJECT_REF, "/advisories?select=cve_ids,source_id&limit=20000"),
+        headers=sb_headers(),
     )
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            rows = json.loads(resp.read())
-        return len({r["source_id"] for r in rows})
-    except Exception:
-        return 1
+    with _ur.urlopen(_req, timeout=120) as _resp:
+        _rows = json.loads(_resp.read())
+    for _r in _rows:
+        for _c in (_r.get("cve_ids") or []):
+            _diversity_cache[_c] = _diversity_cache.get(_c, 0) + 1
+except Exception:
+    pass
 
 
 def insert_risk_scores(rows: list[dict]) -> int:

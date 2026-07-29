@@ -15,28 +15,33 @@ const SUPABASE_ANON = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || '';
   </script>
   <script>
     import { sb } from '../lib/sb';
+
+    function esc(s: string): string {
+      return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] || c));
+    }
+
     if (!sb) {
-      document.getElementById('src-grid').innerHTML = '<p style="color:var(--crit)">Faltan env vars de Supabase.</p>';
+      const el = document.getElementById('src-grid');
+      if (el) el.innerHTML = '<p style="color:var(--crit)">Faltan env vars de Supabase.</p>';
     } else {
-      Promise.all([
-        sb.from('sources').select('*').order('slug'),
-        sb.from('advisories').select('source_id'),
-        sb.from('vulnerabilities').select('cve_id', { count: 'exact', head: true }),
-      ]).then(([srcRes, advRes, vulnRes]) => {
-        const advCount: Record<string, number> = {};
-        for (const a of advRes.data || []) advCount[a.source_id] = (advCount[a.source_id] || 0) + 1;
-        const grid = document.getElementById('src-grid');
-        if (!grid) return;
-        grid.innerHTML = (srcRes.data || []).map((s: any) => {
-          const count = advCount[s.id] || 0;
-          return `<div class="source-card">
-            <div class="slug">${s.slug}</div>
-            <div style="font-size:14px;margin-top:6px">${s.name}</div>
-            <div class="meta">${s.kind} · ${s.enabled ? 'enabled' : 'disabled'} · ${count.toLocaleString()} advisories</div>
-            <div class="meta">${s.url ? `<a href="${s.url}" target="_blank" rel="noopener">URL oficial ↗</a>` : ''}</div>
-          </div>`;
-        }).join('');
-      });
+      // Single query with embedded count — avoids PostgREST default 1000-row limit.
+      sb.from('sources')
+        .select('id,slug,name,kind,url,enabled,advisories(count)')
+        .order('slug')
+        .then(({ data, error }) => {
+          const grid = document.getElementById('src-grid');
+          if (!grid) return;
+          if (error) { grid.innerHTML = `<p style="color:var(--crit)">${esc(error.message)}</p>`; return; }
+          grid.innerHTML = (data || []).map((s) => {
+            const c = (s.advisories && s.advisories[0] && s.advisories[0].count) || 0;
+            return `<div class="source-card">
+              <div class="slug">${esc(s.slug)}</div>
+              <div style="font-size:14px;margin-top:6px">${esc(s.name)}</div>
+              <div class="meta">${esc(s.kind)} · ${s.enabled ? 'enabled' : 'disabled'} · ${c.toLocaleString()} advisories</div>
+              <div class="meta">${s.url ? `<a href="${s.url}" target="_blank" rel="noopener">URL oficial ↗</a>` : ''}</div>
+            </div>`;
+          }).join('');
+        });
     }
   </script>
 </Base>

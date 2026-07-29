@@ -19,7 +19,7 @@ import json
 import sys
 import time
 import traceback
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 # Allow `python ingest/ingest.py` from project root
@@ -129,8 +129,13 @@ def fetch_ghsa(limit: int = 50) -> tuple[list[dict], list[dict], dict]:
     return advisories, vulns, {"ghsa": status}
 
 
-def fetch_nvd(cve_ids: list[str] | None = None, limit: int = 20) -> tuple[list[dict], list[dict], dict]:
-    """Fetch NVD for specific CVEs or latest modified."""
+def fetch_nvd(cve_ids: list[str] | None = None, limit: int = 20,
+              last_mod_start: str | None = None, last_mod_end: str | None = None) -> tuple[list[dict], list[dict], dict]:
+    """Fetch NVD for specific CVEs, or NVD-modified-since window.
+
+    last_mod_start/end are ISO-8601 strings (e.g. '2026-07-28T00:00:00.000').
+    When provided, NVD returns all CVEs modified in that window — use for daily diff.
+    """
     nvd_key = None
     for line in open("/root/.hermes/.env").read().splitlines():
         if line.startswith("NVD_API_KEY="):
@@ -139,8 +144,10 @@ def fetch_nvd(cve_ids: list[str] | None = None, limit: int = 20) -> tuple[list[d
     headers = {"apiKey": nvd_key} if nvd_key else {}
     if cve_ids:
         url = f"https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={','.join(cve_ids[:limit])}"
+    elif last_mod_start and last_mod_end:
+        url = f"https://services.nvd.nist.gov/rest/json/cves/2.0?lastModStartDate={last_mod_start}&lastModEndDate={last_mod_end}&resultsPerPage={limit}"
     else:
-        url = f"https://services.nvd.nist.gov/rest/json/cves/2.0?lastModStartDate=2024-01-01T00:00:00.000&lastModEndDate=2026-12-31T23:59:59.999&resultsPerPage={limit}"
+        url = f"https://services.nvd.nist.gov/rest/json/cves/2.0?resultsPerPage={limit}"
     try:
         status, data = http_get_json(url, headers=headers)
     except HTTPError as e:
@@ -155,25 +162,40 @@ def fetch_nvd(cve_ids: list[str] | None = None, limit: int = 20) -> tuple[list[d
         v = normalize_nvd_to_vuln(item["cve"] if "cve" in item else item)
         if v.get("cve_id"):
             vulns.append(v)
-        time.sleep(0.3)  # polite rate
+        time.sleep(0.05)  # polite rate (NVD with key: 50/30s)
     return advisories, vulns, {"nvd": status}
 
 
 def fetch_msrc(limit: int = 10) -> tuple[list[dict], list[dict], dict]:
-    """Fetch MSRC updates list (skip non-security)."""
+    """Fetch MSRC updates list (skip non-security) + parse recent CVRF docs for CVE-level enrichment."""
+    from ingest.lib.msrc_cvrf import parse_cvrf
     url = "https://api.msrc.microsoft.com/cvrf/v2.0/updates"
     try:
         status, data = http_get_json(url)
     except HTTPError as e:
         return [], [], {"msrc": e.status}
-    items = (data.get("value") or [])[:limit]
-    advisories = []
+    items_all = data.get("value") or []
+    # List is sorted oldest→newest; we want most recent first for both CVEs and CVRF fetch cost.
+    items_all.sort(key=lambda x: x.get("InitialReleaseDate") or "", reverse=True)
+    items = items_all[:limit]
+    advisories, vulns = [], []
     for it in items:
         n = normalize_msrc(it)
         if n:
             n["content_hash"] = sha256_json(n["raw"])
             advisories.append(n)
-    return advisories, [], {"msrc": status}
+        # Also fetch the per-doc CVRF for CVE-level fields (limit to recent 5 to keep cheap)
+        cvrf_url = it.get("CvrfUrl")
+        if cvrf_url:
+            try:
+                # cvrf v3 doc is XML. http_get returns bytes; feed to ET.
+                s_code, body = http_get(cvrf_url, headers={"Accept": "application/xml,*/*"})
+                if s_code == 200:
+                    for rec in parse_cvrf(body):
+                        vulns.append(rec)
+            except Exception:
+                continue  # one bad doc shouldn't kill the run
+    return advisories, vulns, {"msrc": status}
 
 
 # Slugs in DB are different from the CLI source names
@@ -355,6 +377,8 @@ def main():
                     help="Cap items per source (QA)")
     ap.add_argument("--cves", default=None,
                     help="Comma list of CVEs for NVD fetch")
+    ap.add_argument("--nvd-since", default=None,
+                    help="ISO date for NVD lastModStartDate window (e.g. 2026-07-28)")
     args = ap.parse_args()
 
     src_choice = args.source.upper()
@@ -387,6 +411,10 @@ def main():
                 kwargs = {"limit": args.limit or 20}
                 if args.cves:
                     kwargs["cve_ids"] = [c.strip() for c in args.cves.split(",")]
+                elif args.nvd_since:
+                    kwargs["last_mod_start"] = f"{args.nvd_since}T00:00:00.000"
+                    # NVD rejects far-future end dates; use now + 1 day
+                    kwargs["last_mod_end"] = (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.000")
                 advs, vulns, statuses = FETCHERS[src](**kwargs)
             else:
                 advs, vulns, statuses = FETCHERS[src](limit=args.limit) if args.limit else FETCHERS[src]()
