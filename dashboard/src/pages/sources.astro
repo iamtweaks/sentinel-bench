@@ -1,0 +1,42 @@
+---
+import Base from '../layouts/Base.astro';
+const SUPABASE_URL = import.meta.env.PUBLIC_SUPABASE_URL || '';
+const SUPABASE_ANON = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || '';
+---
+<Base title="Sentinel-Bench — Fuentes">
+  <h1>Fuentes de Inteligencia</h1>
+  <p style="color:var(--muted)">Catálogo de feeds públicos consumidos por Sentinel-Bench. Solo se ingiere contenido legítimo y abierto.</p>
+  <div id="src-grid" class="sources-list">
+    <p style="color:var(--muted)">Cargando…</p>
+  </div>
+  <script is:inline define:vars={{ SUPABASE_URL, SUPABASE_ANON }}>
+    window.__SB_URL = SUPABASE_URL;
+    window.__SB_ANON = SUPABASE_ANON;
+  </script>
+  <script>
+    import { sb } from '../lib/sb';
+    if (!sb) {
+      document.getElementById('src-grid').innerHTML = '<p style="color:var(--crit)">Faltan env vars de Supabase.</p>';
+    } else {
+      Promise.all([
+        sb.from('sources').select('*').order('slug'),
+        sb.from('advisories').select('source_id'),
+        sb.from('vulnerabilities').select('cve_id', { count: 'exact', head: true }),
+      ]).then(([srcRes, advRes, vulnRes]) => {
+        const advCount: Record<string, number> = {};
+        for (const a of advRes.data || []) advCount[a.source_id] = (advCount[a.source_id] || 0) + 1;
+        const grid = document.getElementById('src-grid');
+        if (!grid) return;
+        grid.innerHTML = (srcRes.data || []).map((s: any) => {
+          const count = advCount[s.id] || 0;
+          return `<div class="source-card">
+            <div class="slug">${s.slug}</div>
+            <div style="font-size:14px;margin-top:6px">${s.name}</div>
+            <div class="meta">${s.kind} · ${s.enabled ? 'enabled' : 'disabled'} · ${count.toLocaleString()} advisories</div>
+            <div class="meta">${s.url ? `<a href="${s.url}" target="_blank" rel="noopener">URL oficial ↗</a>` : ''}</div>
+          </div>`;
+        }).join('');
+      });
+    }
+  </script>
+</Base>

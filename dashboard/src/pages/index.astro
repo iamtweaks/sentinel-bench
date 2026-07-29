@@ -1,0 +1,176 @@
+---
+import Base from '../layouts/Base.astro';
+
+// Embed Supabase anon credentials into the page at build time so the dashboard
+// can query the public Supabase REST endpoint directly. These are NOT secrets —
+// they are publishable keys for a public-read DB. (Rotate later via RLS if needed.)
+const SUPABASE_URL = import.meta.env.PUBLIC_SUPABASE_URL || '';
+const SUPABASE_ANON = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || '';
+---
+<Base title="Sentinel-Bench — Top Amenazas">
+  <h1>Top Amenazas</h1>
+  <div class="hero">
+    <strong>Cyber Threat Intelligence</strong> personal — vulnerabilidades priorizadas
+    por <em>explotación real</em>, no solo CVSS. Combina CISA KEV, EPSS, NVD CVSS, GitHub
+    Security Advisories y Microsoft MSRC.
+    <p>Top 5 priorizadas por score (KEV + EPSS + CVSS + evidencia de exploit + recencia).
+    Fedeá search y filtros abajo. Última actualización: <span id="updated">cargando…</span></p>
+    <div class="kpis">
+      <div class="kpi"><div class="v" id="kpi-kev">–</div><div class="l">CVE en CISA KEV</div></div>
+      <div class="kpi"><div class="v" id="kpi-total">–</div><div class="l">Vulnerabilidades</div></div>
+      <div class="kpi"><div class="v" id="kpi-poc">–</div><div class="l">PoC público</div></div>
+      <div class="kpi"><div class="v" id="kpi-sources">–</div><div class="l">Fuentes activas</div></div>
+    </div>
+  </div>
+
+  <div class="filters">
+    <input id="q" type="text" placeholder="Buscar CVE, vendor, producto…" />
+    <select id="kev-filter">
+      <option value="">KEV (todos)</option>
+      <option value="true">Solo KEV</option>
+      <option value="false">Sin KEV</option>
+    </select>
+    <select id="severity-filter">
+      <option value="">Severidad (todas)</option>
+      <option value="CRITICAL">Critical (CVSS ≥ 9)</option>
+      <option value="HIGH">High (7–8.9)</option>
+      <option value="MEDIUM">Medium (4–6.9)</option>
+      <option value="LOW">Low (&lt; 4)</option>
+    </select>
+    <select id="exploit-filter">
+      <option value="">Explotación (todas)</option>
+      <option value="confirmed">Confirmada (KEV)</option>
+      <option value="poc">PoC público</option>
+      <option value="probable">Probable</option>
+      <option value="unknown">Sin evidencia</option>
+    </select>
+    <label><input type="checkbox" id="sort-score" checked /> Ordenar por score</label>
+  </div>
+
+  <table id="tbl">
+    <thead>
+      <tr>
+        <th>CVE</th>
+        <th>Score</th>
+        <th>CVSS</th>
+        <th>EPSS</th>
+        <th>Vendor</th>
+        <th>Explotación</th>
+        <th>Rationale</th>
+        <th>Actualizado</th>
+      </tr>
+    </thead>
+    <tbody id="rows">
+      <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Cargando…</td></tr>
+    </tbody>
+  </table>
+
+  <div id="detail-pane" style="display:none;margin-top:24px"></div>
+
+  <script is:inline define:vars={{ SUPABASE_URL, SUPABASE_ANON }}>
+    window.__SB_URL = SUPABASE_URL;
+    window.__SB_ANON = SUPABASE_ANON;
+  </script>
+  <script>
+    import { sb } from '../lib/sb';
+    import { renderRows, bindRowClicks, renderDetail } from '../lib/render';
+
+    if (!sb) {
+      document.getElementById('rows').innerHTML =
+        '<tr><td colspan="8" style="text-align:center;color:var(--crit);padding:30px">Faltan PUBLIC_SUPABASE_URL / PUBLIC_SUPABASE_ANON_KEY. Configurá las env vars en Vercel.</td></tr>';
+    } else {
+      const state = {
+        rows: [],
+        sortByScore: true,
+        filters: { q: '', kev: '', severity: '', exploit: '' }
+      };
+
+      async function load() {
+        // Pull latest score per CVE
+        const { data: scores, error } = await sb
+          .from('risk_scores')
+          .select('cve_id, score, factors, rationale, computed_at')
+          .order('computed_at', { ascending: false })
+          .limit(2000);
+        if (error) {
+          document.getElementById('rows').innerHTML = `<tr><td colspan=8 style="color:var(--crit);padding:30px">Error: ${error.message}</td></tr>`;
+          return;
+        }
+        // Dedupe latest per cve_id
+        const seen = new Set();
+        const top = [];
+        for (const r of scores || []) {
+          if (seen.has(r.cve_id)) continue;
+          seen.add(r.cve_id);
+          top.push(r);
+        }
+        // Pull vuln metadata in one query
+        const cveIds = top.map(r => r.cve_id);
+        let vulns = [];
+        if (cveIds.length) {
+          const filter = `cve_id=in.(${cveIds.map(c => `"${c}"`).join(',')})`;
+          const { data } = await sb.from('vulnerabilities').select('cve_id,cvss_v3_score,epss_score,is_kev,vendors,products,exploited_in_wild,poc_public,last_updated_at').filter('cve_id', 'in', `(${cveIds.map(c => `"${c}"`).join(',')})`);
+          vulns = data || [];
+        }
+        const vmap = Object.fromEntries(vulns.map(v => [v.cve_id, v]));
+        state.rows = top.map(s => ({ ...s, vuln: vmap[s.cve_id] || {} }));
+        // KPIs
+        const kevCount = state.rows.filter(r => r.vuln.is_kev).length;
+        const pocCount = state.rows.filter(r => r.vuln.poc_public).length;
+        const total = state.rows.length;
+        const updated = state.rows[0]?.computed_at;
+        document.getElementById('kpi-kev').textContent = kevCount.toLocaleString();
+        document.getElementById('kpi-total').textContent = total.toLocaleString();
+        document.getElementById('kpi-poc').textContent = pocCount.toLocaleString();
+        document.getElementById('kpi-sources').textContent = '5';
+        document.getElementById('updated').textContent = updated ? new Date(updated).toISOString().replace('T', ' ').slice(0, 16) + ' UTC' : '—';
+        // Source counts
+        sb.from('sources').select('*', { count: 'exact', head: true }).then(({ count }) => {
+          document.getElementById('kpi-sources').textContent = (count ?? '—').toString();
+        });
+        render();
+      }
+
+      function applyFilters(rows) {
+        const f = state.filters;
+        return rows.filter(r => {
+          if (f.kev === 'true' && !r.vuln.is_kev) return false;
+          if (f.kev === 'false' && r.vuln.is_kev) return false;
+          if (f.exploit === 'confirmed' && !r.vuln.exploited_in_wild) return false;
+          if (f.exploit === 'poc' && !r.vuln.poc_public) return false;
+          if (f.exploit === 'unknown' && (r.vuln.exploited_in_wild || r.vuln.poc_public)) return false;
+          if (f.q) {
+            const v = (r.vuln.vendors || []).join(' ') + ' ' + (r.vuln.products || []).join(' ') + ' ' + r.cve_id;
+            if (!v.toLowerCase().includes(f.q.toLowerCase())) return false;
+          }
+          if (f.severity) {
+            const cvss = r.vuln.cvss_v3_score;
+            if (f.severity === 'CRITICAL' && !(cvss >= 9)) return false;
+            if (f.severity === 'HIGH' && !(cvss >= 7 && cvss < 9)) return false;
+            if (f.severity === 'MEDIUM' && !(cvss >= 4 && cvss < 7)) return false;
+            if (f.severity === 'LOW' && !(cvss !== null && cvss < 4)) return false;
+          }
+          return true;
+        });
+      }
+
+      function render() {
+        let rows = applyFilters(state.rows);
+        if (state.sortByScore) rows.sort((a, b) => b.score - a.score);
+        renderRows(document.getElementById('rows'), rows);
+        bindRowClicks(document.getElementById('rows'), (cve) => {
+          const detail = state.rows.find(r => r.cve_id === cve);
+          renderDetail(document.getElementById('detail-pane'), detail);
+        });
+      }
+
+      document.getElementById('q').addEventListener('input', e => { state.filters.q = e.target.value; render(); });
+      document.getElementById('kev-filter').addEventListener('change', e => { state.filters.kev = e.target.value; render(); });
+      document.getElementById('severity-filter').addEventListener('change', e => { state.filters.severity = e.target.value; render(); });
+      document.getElementById('exploit-filter').addEventListener('change', e => { state.filters.exploit = e.target.value; render(); });
+      document.getElementById('sort-score').addEventListener('change', e => { state.sortByScore = e.target.checked; render(); });
+
+      load();
+    }
+  </script>
+</Base>
