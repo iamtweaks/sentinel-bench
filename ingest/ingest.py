@@ -32,6 +32,7 @@ from ingest.lib import (
     sha256_json, sb_get_source_id_cached, sb_upsert_advisory, sb_upsert_vuln,
     sb_record_run, sb_patch_run, sb_headers, sb_url, HTTPError,
 )
+from ingest.lib.ot import normalize_rss_ot, normalize_csaf_ot, normalize_moxa_html
 import urllib.request
 
 PROJECT_REF = open("/root/projects/sentinel-bench/.supabase-creds").readline().split("=",1)[1].strip()
@@ -198,6 +199,171 @@ def fetch_msrc(limit: int = 10) -> tuple[list[dict], list[dict], dict]:
     return advisories, vulns, {"msrc": status}
 
 
+# ----------------------------- OT fetchers -----------------------------
+def fetch_ot_rss(slug: str, limit: int | None = None) -> tuple[list[dict], list[dict], dict]:
+    """Shared no-dependency RSS path for public OT vendor feeds."""
+    source = SOURCES[slug]
+    try:
+        status, body = http_get(source["url"], headers={"Accept": "application/rss+xml, application/xml, text/xml"})
+        advisories = normalize_rss_ot(body.decode("utf-8", "replace"), vendor=source["vendor"], source=slug)
+    except HTTPError as e:
+        return [], [], {slug: e.status}
+    if limit:
+        advisories = advisories[:limit]
+    for advisory in advisories:
+        advisory["content_hash"] = sha256_json(advisory["raw"])
+    return advisories, [], {slug: status}
+
+
+def fetch_abb_psirt(limit: int | None = None) -> tuple[list[dict], list[dict], dict]:
+    """Compatibility alias for ABB's public PSIRT RSS feed."""
+    return fetch_ot_rss("abb_psirt", limit)
+
+
+def fetch_ot_csaf(slug: str, limit: int | None = None) -> tuple[list[dict], list[dict], dict]:
+    """Shared CSAF ROLIE feed path for vendors publishing structured OT advisories."""
+    source = SOURCES[slug]
+    try:
+        status, index = http_get_json(source["url"])
+    except HTTPError as e:
+        return [], [], {slug: e.status}
+    entries = ((index.get("feed") or {}).get("entry") or [])
+    if limit:
+        entries = entries[:limit]
+    advisories: list[dict] = []
+    for entry in entries:
+        url = (entry.get("content") or {}).get("src") or next((x.get("href") for x in entry.get("link") or [] if x.get("rel") == "self"), None)
+        if not url:
+            continue
+        try:
+            _, doc = http_get_json(url)
+        except HTTPError:
+            continue
+        advisories.extend(normalize_csaf_ot(doc, source["vendor"]))
+    for advisory in advisories:
+        advisory["content_hash"] = sha256_json(advisory["raw"])
+    return advisories, [], {slug: status}
+
+
+def fetch_abb_csaf(limit: int | None = None) -> tuple[list[dict], list[dict], dict]:
+    """Compatibility alias for ABB's CSAF feed."""
+    return fetch_ot_csaf("abb_csaf", limit)
+
+
+def fetch_cisco_psirt(limit: int = 200) -> tuple[list[dict], list[dict], dict]:
+    """Fetch Cisco's undocumented but public publication API (no key or auth)."""
+    url = SOURCES["cisco_psirt"]["url"].replace("limit=200", f"limit={min(limit, 100)}")  # Cisco returns empty 200 above 100
+    try:
+        status, rows = http_get_json(url)
+    except HTTPError as e:
+        return [], [], {"cisco_psirt": e.status}
+    advisories = []
+    for row in rows or []:
+        external_id = row.get("identifier")
+        if not external_id:
+            continue
+        raw = {k: row.get(k) for k in ("identifier", "title", "severity", "summary", "firstPublished", "lastPublished", "url")}
+        advisories.append({
+            "external_id": external_id,
+            "url": row.get("url"),
+            "title": row.get("title") or external_id,
+            "summary": row.get("summary") or "",
+            "severity": str(row.get("severity") or "unknown").upper(),
+            "published_at": row.get("firstPublished") or row.get("lastPublished"),
+            "cve_ids": [],
+            "vendors": ["cisco"],
+            "products": [],
+            "is_kev": False,
+            "exploitation_status": "unknown",
+            "domain": "OT",
+            "raw": raw,
+            "content_hash": sha256_json(raw),
+        })
+    return advisories, [], {"cisco_psirt": status}
+
+
+def fetch_cisa_ics(limit: int = 100) -> tuple[list[dict], list[dict], dict]:
+    """Fetch recent CISA OT CSAF docs from CISA's official GitHub mirror."""
+    try:
+        status, tree = http_get_json(SOURCES["cisa_ics"]["url"])
+    except HTTPError as e:
+        return [], [], {"cisa_ics": e.status}
+    paths = sorted(
+        x["path"] for x in tree.get("tree", [])
+        if x.get("path", "").startswith("csaf_files/OT/white/") and x["path"].endswith(".json")
+        and not x["path"].endswith("feed-tlp-white.json")
+    )
+    # ponytail: use recent lexical CSAF paths; switch to commit-time pagination if backlog precision matters.
+    advisories: list[dict] = []
+    for path in paths[-min(limit, 100):]:
+        url = f"https://raw.githubusercontent.com/cisagov/CSAF/develop/{path}"
+        try:
+            _, doc = http_get_json(url)
+        except HTTPError:
+            continue
+        advisories.extend(normalize_csaf_ot(doc, "cisa"))
+    for advisory in advisories:
+        advisory["content_hash"] = sha256_json(advisory["raw"])
+    return advisories, [], {"cisa_ics": status}
+
+
+def fetch_moxa(limit: int = 20) -> tuple[list[dict], list[dict], dict]:
+    """Fetch Moxa's public server-rendered advisory table."""
+    try:
+        status, body = http_get(SOURCES["moxa"]["url"])
+    except HTTPError as e:
+        return [], [], {"moxa": e.status}
+    advisories = normalize_moxa_html(body.decode("utf-8", "replace"))[:limit]
+    for advisory in advisories:
+        advisory["content_hash"] = sha256_json(advisory["raw"])
+    return advisories, [], {"moxa": status}
+
+
+def fetch_paloalto(limit: int = 100) -> tuple[list[dict], list[dict], dict]:
+    """Fetch Palo Alto's public advisory JSON endpoint."""
+    try:
+        status, rows = http_get_json(SOURCES["paloalto"]["url"])
+    except HTTPError as e:
+        return [], [], {"paloalto": e.status}
+    advisories = []
+    for row in (rows or [])[:limit]:
+        external_id = row.get("ID")
+        if not external_id:
+            continue
+        cves = [external_id] if external_id.startswith("CVE-") else []
+        summary = "; ".join(filter(None, [row.get("title"), f"Affected: {', '.join(row.get('affected') or [])}", f"Fixed: {', '.join(row.get('fixed') or [])}"]))[:4000]
+        advisories.append({
+            "external_id": external_id, "url": f"https://security.paloaltonetworks.com/{external_id}",
+            "title": row.get("title") or external_id, "summary": summary,
+            "severity": str(row.get("baseSeverity") or row.get("threatSeverity") or "unknown").upper(),
+            "published_at": row.get("date") or row.get("updated"), "cve_ids": cves,
+            "vendors": ["paloalto"], "products": row.get("product") or [], "is_kev": False,
+            "exploitation_status": "unknown", "domain": "OT", "raw": row,
+            "content_hash": sha256_json(row),
+        })
+    return advisories, [], {"paloalto": status}
+
+
+def fetch_nvd_ics(limit: int = 200) -> tuple[list[dict], list[dict], dict]:
+    """Fetch free NVD CVEs matching ICS, marked OT without changing canonical NVD rows."""
+    nvd_key = next((line.split("=", 1)[1].strip() for line in open("/root/.hermes/.env") if line.startswith("NVD_API_KEY=")), "")
+    try:
+        status, data = http_get_json(SOURCES["nvd_ics"]["url"].replace("2000", str(min(limit, 2000))), headers={"apiKey": nvd_key} if nvd_key else {})
+    except HTTPError as e:
+        return [], [], {"nvd_ics": e.status}
+    advisories, vulns = [], []
+    for item in data.get("vulnerabilities", []) or []:
+        cve = item.get("cve") or item
+        normalized = normalize_nvd(cve)
+        normalized["domain"] = "OT"
+        normalized["content_hash"] = sha256_json(normalized["raw"])
+        advisories.append(normalized)
+        vuln = normalize_nvd_to_vuln(cve)
+        if vuln.get("cve_id"):
+            vulns.append(vuln)
+    return advisories, vulns, {"nvd_ics": status}
+
+
 # Slugs in DB are different from the CLI source names
 SOURCE_SLUGS = {
     "KEV": "cisa_kev",
@@ -205,6 +371,17 @@ SOURCE_SLUGS = {
     "GHSA": "ghsa",
     "NVD": "nvd",
     "MSRC": "msrc",
+    "ABB": "abb_psirt",
+    "ABB_CSAF": "abb_csaf",
+    "SIEMENS": "siemens",
+    "ROCKWELL": "rockwell",
+    "CERT_VDE": "cert_vde",
+    "FORTINET": "fortinet",
+    "CISCO": "cisco_psirt",
+    "PALOALTO": "paloalto",
+    "CISA_ICS": "cisa_ics",
+    "MOXA": "moxa",
+    "NVD_ICS": "nvd_ics",
 }
 
 FETCHERS = {
@@ -213,6 +390,17 @@ FETCHERS = {
     "GHSA": fetch_ghsa,
     "NVD": fetch_nvd,
     "MSRC": fetch_msrc,
+    "ABB": fetch_abb_psirt,
+    "ABB_CSAF": fetch_abb_csaf,
+    "SIEMENS": lambda limit=None: fetch_ot_csaf("siemens", limit),
+    "ROCKWELL": lambda limit=None: fetch_ot_rss("rockwell", limit),
+    "CERT_VDE": lambda limit=None: fetch_ot_rss("cert_vde", limit),
+    "FORTINET": lambda limit=None: fetch_ot_rss("fortinet", limit),
+    "CISCO": fetch_cisco_psirt,
+    "PALOALTO": fetch_paloalto,
+    "CISA_ICS": fetch_cisa_ics,
+    "MOXA": fetch_moxa,
+    "NVD_ICS": fetch_nvd_ics,
 }
 
 # ----------------------------- upsert helpers -----------------------------
@@ -239,6 +427,7 @@ def upsert_advisories(source_slug: str, advisories: list[dict]) -> int:
             "products": a.get("products") or [],
             "is_kev": a.get("is_kev", False),
             "exploitation_status": a.get("exploitation_status", "unknown"),
+            "domain": a.get("domain", "IT"),
         })
     # PostgREST caps at ~1000 rows per request
     total = 0

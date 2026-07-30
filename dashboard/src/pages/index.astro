@@ -67,6 +67,12 @@ const SUPABASE_ANON = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || '';
 
   <div id="detail-pane" style="display:none;margin-top:24px"></div>
 
+  <section class="ot-section" aria-labelledby="ot-title">
+    <h2 id="ot-title">OT / ICS Advisories</h2>
+    <p class="muted">Fuentes industriales separadas de IT: vendors, ICS/SCADA y edge de planta.</p>
+    <div id="ot-rows" class="ot-grid"><p class="muted">Cargando advisories OT…</p></div>
+  </section>
+
   <script is:inline define:vars={{ SUPABASE_URL, SUPABASE_ANON }}>
     window.__SB_URL = SUPABASE_URL;
     window.__SB_ANON = SUPABASE_ANON;
@@ -84,6 +90,35 @@ const SUPABASE_ANON = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || '';
         sortByScore: true,
         filters: { q: '', kev: '', severity: '', exploit: '' }
       };
+
+      const escapeHtml = (v = '') => String(v).replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
+
+      async function loadOt() {
+        const target = document.getElementById('ot-rows');
+        const { data, error } = await sb
+          .from('advisories')
+          .select('title,summary,url,severity,published_at,vendors,cve_ids')
+          .eq('domain', 'OT')
+          .order('published_at', { ascending: false, nullsFirst: false })
+          .limit(50);
+        if (error) {
+          target.innerHTML = `<p class="muted">OT no disponible: ${escapeHtml(error.message)}</p>`;
+          return;
+        }
+        if (!data?.length) {
+          target.innerHTML = '<p class="muted">Todavía no hay advisories OT.</p>';
+          return;
+        }
+        target.innerHTML = data.map(a => {
+          const title = escapeHtml(a.title || 'Advisory sin título');
+          const summary = escapeHtml(a.summary || '').slice(0, 300);
+          const vendor = escapeHtml((a.vendors || []).join(', ') || 'OT');
+          const cves = escapeHtml((a.cve_ids || []).join(', '));
+          const when = a.published_at ? new Date(a.published_at).toISOString().slice(0, 10) : 'fecha desconocida';
+          const body = `<article class="ot-card"><div class="ot-meta"><b>${vendor}</b> · ${when}${cves ? ` · ${cves}` : ''}</div><h3>${title}</h3><p>${summary}</p></article>`;
+          return a.url ? `<a href="${escapeHtml(a.url)}" target="_blank" rel="noopener noreferrer">${body}</a>` : body;
+        }).join('');
+      }
 
       async function load() {
         // Pull latest score per CVE
@@ -171,6 +206,7 @@ const SUPABASE_ANON = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || '';
       document.getElementById('sort-score').addEventListener('change', e => { state.sortByScore = e.target.checked; render(); });
 
       load();
+      loadOt();
     }
   </script>
 </Base>
