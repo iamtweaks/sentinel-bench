@@ -102,42 +102,39 @@ def hash_payload(s: str) -> str:
 # ----------------------------- Telegram -----------------------------
 
 def send_telegram(text: str) -> bool:
-    """Send via the existing Telegram bot (no LLM in this call)."""
+    """Send ONE Telegram message (single sendMessage call).
+
+    Telegram max is 4096 chars. If we exceed, we trim from the bottom
+    (the lower-priority 'Fuentes' section), keeping the top content intact.
+    No multi-message splitting — the user wants a single briefing per day.
+    """
     token = os.environ.get("TELEGRAM_BOT_TOKEN") or _read_env("TELEGRAM_BOT_TOKEN")
     chat_id = os.environ.get("TELEGRAM_HOME_CHANNEL") or _read_env("TELEGRAM_HOME_CHANNEL")
     if not token or not chat_id:
         print("warn: TELEGRAM_BOT_TOKEN or TELEGRAM_HOME_CHANNEL missing", file=sys.stderr)
         return False
-    # Telegram caps messages at 4096 chars; split if needed.
-    chunks = []
-    cur = ""
-    for line in text.split("\n"):
-        if len(cur) + len(line) + 1 > 3800:
-            chunks.append(cur)
-            cur = line
-        else:
-            cur = (cur + "\n" + line) if cur else line
-    if cur:
-        chunks.append(cur)
-    ok = True
-    for chunk in chunks:
-        payload = json.dumps({"chat_id": chat_id, "text": chunk, "parse_mode": "Markdown", "disable_web_page_preview": True})
-        req = urllib.request.Request(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            data=payload.encode(),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                r = json.loads(resp.read())
-                if not r.get("ok"):
-                    ok = False
-                    print(f"telegram fail: {r}", file=sys.stderr)
-        except urllib.error.HTTPError as e:
-            print(f"telegram http {e.code}: {e.read().decode()[:200]}", file=sys.stderr)
-            ok = False
-    return ok
+    # One message, capped at 4096. Truncate from the bottom (the sources list is the
+    # part that's nice-to-have, not load-bearing).
+    MAX = 4096
+    if len(text) > MAX:
+        text = text[: MAX - 1] + "…"
+    payload = json.dumps({"chat_id": chat_id, "text": text, "parse_mode": "Markdown", "disable_web_page_preview": True})
+    req = urllib.request.Request(
+        f"https://api.telegram.org/bot{token}/sendMessage",
+        data=payload.encode(),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            r = json.loads(resp.read())
+            if not r.get("ok"):
+                print(f"telegram fail: {r}", file=sys.stderr)
+                return False
+    except urllib.error.HTTPError as e:
+        print(f"telegram http {e.code}: {e.read().decode()[:200]}", file=sys.stderr)
+        return False
+    return True
 
 
 def _read_env(name: str) -> str:
@@ -278,30 +275,59 @@ def main():
             for i, r in enumerate(top)
         )
 
-    # 6) Compose Telegram message
-    header = f"*🔐 Sentinel-Bench — {started.strftime('%Y-%m-%d %H:%M UTC')}*\n_Top amenazas (KEV+EPSS+CVSS)_\n"
-    # Strip any noise lines from the LLM output (e.g. "Normalized model..." warnings)
+    # 6) Compose Telegram message — single message, kept compact to fit Telegram 4096 cap.
+    header = (
+        f"*🔐 Sentinel-Bench — {started.strftime('%Y-%m-%d %H:%M UTC')}*\n"
+        f"_Top amenazas — score por KEV+EPSS+CVSS+exploit+recencia_\n\n"
+    )
+    # Strip noise lines from LLM output (e.g. "⚠️ Normalized model...")
     clean_lines = [
         ln for ln in llm_out.splitlines()
         if not ln.startswith("⚠️") and not ln.startswith("Normalized model")
     ]
     llm_clean = "\n".join(clean_lines).strip()
-    sources_lines = ["", "*Fuentes:*"]
+    _ = llm_clean  # kept for fallback visibility if LLM path is reactivated
+
+    # Compact per-CVE: 1-3 lines per entry. No duplicate fuentes block (links inline).
+    compact_blocks: list[str] = []
     for r in top:
+        v = enrich.get(r["cve_id"], {})
         links = fetch_advisory_links(r["cve_id"])
-        # Show up to 4 sources, prefer non-API urls
-        items = []
-        seen = set()
-        for l in links:
-            u = l.get("url") or ""
-            if not u or "api.first.org" in u or u in seen:
-                continue
-            seen.add(u)
-            items.append(f"[{l['source']}]({u})")
-            if len(items) >= 3:
-                break
-        sources_lines.append(f"  • {r['cve_id']}: " + (" / ".join(items) if items else "_sin enlaces_"))
-    msg = header + "\n" + llm_clean + "\n" + "\n".join(sources_lines)
+        cvss = v.get("cvss_v3_score")
+        epss = v.get("epss_score")
+        exploit = (r["factors"].get("exploitation_status") or "unknown").replace("_", " ")
+        kev_tag = "🟠 KEV" if v.get("is_kev") else ""
+        cve_link = f"[{r['cve_id']}](https://nvd.nist.gov/vuln/detail/{r['cve_id']})"
+        line1 = f"*{cve_link}* — score `{r['score']}` {kev_tag}".rstrip()
+        line2_bits = []
+        if cvss is not None: line2_bits.append(f"CVSS {cvss}")
+        if epss is not None: line2_bits.append(f"EPSS {float(epss):.2f}")
+        line2_bits.append(f"exploit: {exploit}")
+        if v.get("vendors"): line2_bits.append("vendor: " + ", ".join(v["vendors"][:2]))
+        lines = [line1, "  " + " · ".join(line2_bits)]
+        # Inline top 2 advisory links
+        if links:
+            seen = set()
+            for l in links:
+                u = l.get("url") or ""
+                if not u or "api.first.org" in u or u in seen:
+                    continue
+                seen.add(u)
+                lines.append(f"  • [{l['source']}]({u})")
+                if len(seen) >= 2: break
+        compact_blocks.append("\n".join(lines))
+    body = "\n\n".join(compact_blocks)
+
+    msg = header + body
+
+    # If LLM produced a short redaction, append it (only if it fits within Telegram 4096 cap).
+    if llm_clean and len(llm_clean) < 1500:
+        candidate = msg + "\n\n*Por qué importa:*\n" + llm_clean
+        if len(candidate) <= 4096:
+            msg = candidate
+
+    if len(msg) > 4096:
+        msg = msg[: 4095] + "…"
 
     if args.dry_run:
         print("DRY RUN — would send:")
