@@ -428,6 +428,7 @@ def upsert_advisories(source_slug: str, advisories: list[dict]) -> int:
             "is_kev": a.get("is_kev", False),
             "exploitation_status": a.get("exploitation_status", "unknown"),
             "domain": a.get("domain", "IT"),
+            "last_seen_at": "now()",
         })
     # PostgREST caps at ~1000 rows per request
     total = 0
