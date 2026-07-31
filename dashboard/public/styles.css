@@ -32,7 +32,8 @@ header {
   top: 0;
   z-index: 10;
 }
-.brand { font-weight: 700; color: var(--accent); text-decoration: none; }
+.brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: var(--accent); text-decoration: none; }
+.brand img { display: block; }
 nav a { color: var(--muted); text-decoration: none; margin-left: 18px; font-size: 14px; }
 nav a:hover { color: var(--text); }
 main { max-width: 1200px; margin: 0 auto; padding: 24px; }
