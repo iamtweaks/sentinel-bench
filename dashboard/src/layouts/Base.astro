@@ -1,8 +1,9 @@
 ---
 interface Props {
   title?: string;
+  active?: 'top' | 'sources' | 'about';
 }
-const { title = 'Sentinel-Bench' } = Astro.props;
+const { title = 'Sentinel-Bench', active = 'top' } = Astro.props;
 ---
 <!DOCTYPE html>
 <html lang="es">
@@ -12,22 +13,27 @@ const { title = 'Sentinel-Bench' } = Astro.props;
   <title>{title}</title>
   <meta name="description" content="Personal Cyber Threat Intelligence — top amenazas, KEV, EPSS, CVSS." />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <header>
-    <a href="/" class="brand"><img src="/favicon.svg" alt="" width="20" height="20" /> Sentinel-Bench</a>
-    <nav>
-      <a href="/">Top</a>
-      <a href="/sources/">Fuentes</a>
-      <a href="/about/">About</a>
-    </nav>
-  </header>
+  <div class="nav-wrap">
+    <header class="nav">
+      <a href="/" class="brand"><img src="/favicon.svg" alt="" width="20" height="20" /> Sentinel-Bench</a>
+      <nav>
+        <a href="/" class:list={[{ 'is-active': active === 'top' }]}>Top</a>
+        <a href="/sources/" class:list={[{ 'is-active': active === 'sources' }]}>Fuentes</a>
+        <a href="/about/" class:list={[{ 'is-active': active === 'about' }]}>About</a>
+      </nav>
+    </header>
+  </div>
   <main>
     <slot />
   </main>
   <footer>
-    <small>Datos públicos · NVD · CISA KEV · EPSS · GHSA · MSRC · <a href="https://github.com/iamtweaks/sentinel-bench" rel="noopener">repo</a></small>
+    <small>Datos públicos · NVD · CISA KEV · EPSS · GHSA · MSRC · <a href="https://github.com/iamtweaks/sentinel-bench" rel="noopener" target="_blank">repo</a></small>
   </footer>
 </body>
 </html>

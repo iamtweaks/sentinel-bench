@@ -2,17 +2,16 @@
 import Base from '../layouts/Base.astro';
 const SUPABASE_URL = import.meta.env.PUBLIC_SUPABASE_URL || '';
 const SUPABASE_ANON = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || '';
+const SUPABASE_URL_JSON = JSON.stringify(SUPABASE_URL);
+const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
 ---
-<Base title="Sentinel-Bench — Fuentes">
+<Base title="Sentinel-Bench — Fuentes" active="sources">
   <h1>Fuentes de Inteligencia</h1>
-  <p style="color:var(--muted)">Catálogo de feeds públicos consumidos por Sentinel-Bench. Solo se ingiere contenido legítimo y abierto.</p>
-  <div id="src-grid" class="sources-list">
+  <p style="color:var(--muted);margin-bottom:24px">Catálogo de feeds públicos consumidos por Sentinel-Bench. Solo se ingiere contenido legítimo y abierto.</p>
+  <div id="src-grid" class="sources-grid">
     <p style="color:var(--muted)">Cargando…</p>
   </div>
-  <script is:inline define:vars={{ SUPABASE_URL, SUPABASE_ANON }}>
-    window.__SB_URL = SUPABASE_URL;
-    window.__SB_ANON = SUPABASE_ANON;
-  </script>
+  <script is:inline set:html={`window.__SB_URL = ${SUPABASE_URL_JSON}; window.__SB_ANON = ${SUPABASE_ANON_JSON};`}></script>
   <script>
     import { sb } from '../lib/sb';
 
@@ -20,28 +19,61 @@ const SUPABASE_ANON = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || '';
       return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] || c));
     }
 
+    function healthFor(published: string | null, enabled: boolean): { cls: string; label: string } {
+      if (!enabled) return { cls: 'down', label: 'Disabled' };
+      if (!published) return { cls: 'stale', label: 'Sin datos' };
+      const ageMs = Date.now() - new Date(published).getTime();
+      const days = ageMs / (1000 * 60 * 60 * 24);
+      // ponytail: 14d threshold for "stale" is heuristic — refine if sources show false-negatives.
+      if (days > 14) return { cls: 'down', label: 'Stale' };
+      if (days > 7) return { cls: 'stale', label: 'Older' };
+      return { cls: 'healthy', label: 'Healthy' };
+    }
+
+    function fmtWhen(iso: string | null): string {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '—';
+      return d.toISOString().slice(0, 10);
+    }
+
+    // ponytail: two-step query keeps it simple — aggregate count separately so PostgREST doesn't complain about mixing scalar + aggregate.
     if (!sb) {
       const el = document.getElementById('src-grid');
       if (el) el.innerHTML = '<p style="color:var(--crit)">Faltan env vars de Supabase.</p>';
     } else {
-      // Single query with embedded count — avoids PostgREST default 1000-row limit.
-      sb.from('sources')
-        .select('id,slug,name,kind,url,enabled,advisories(count)')
-        .order('slug')
-        .then(({ data, error }) => {
-          const grid = document.getElementById('src-grid');
-          if (!grid) return;
-          if (error) { grid.innerHTML = `<p style="color:var(--crit)">${esc(error.message)}</p>`; return; }
-          grid.innerHTML = (data || []).map((s) => {
-            const c = (s.advisories && s.advisories[0] && s.advisories[0].count) || 0;
-            return `<div class="source-card">
-              <div class="slug">${esc(s.slug)}</div>
-              <div style="font-size:14px;margin-top:6px">${esc(s.name)}</div>
-              <div class="meta">${esc(s.kind)} · ${s.enabled ? 'enabled' : 'disabled'} · ${c.toLocaleString()} advisories</div>
-              <div class="meta">${s.url ? `<a href="${s.url}" target="_blank" rel="noopener">URL oficial ↗</a>` : ''}</div>
-            </div>`;
-          }).join('');
-        });
+      Promise.all([
+        sb.from('sources').select('id,slug,name,kind,url,enabled').order('slug'),
+        sb.from('advisories').select('source_id,published_at').order('published_at', { ascending: false }).limit(2000),
+      ]).then(([srcRes, advRes]) => {
+        const grid = document.getElementById('src-grid');
+        if (!grid) return;
+        if (srcRes.error) { grid.innerHTML = `<p style="color:var(--crit)">${esc(srcRes.error.message)}</p>`; return; }
+        const sources = srcRes.data || [];
+        const advs = advRes.data || [];
+        const lastPerSource = new Map<string, string>();
+        const countPerSource = new Map<string, number>();
+        for (const a of advs) {
+          if (!a.source_id) continue;
+          countPerSource.set(a.source_id, (countPerSource.get(a.source_id) || 0) + 1);
+          if (!lastPerSource.has(a.source_id)) lastPerSource.set(a.source_id, a.published_at);
+        }
+        grid.innerHTML = sources.map((s, i) => {
+          const count = countPerSource.get(s.id) || 0;
+          const lastPublished = lastPerSource.get(s.id) || null;
+          const h = healthFor(lastPublished, s.enabled);
+          return `<div class="source-card" style="--delay:${Math.min(i, 24) * 30}ms">
+            <div class="slug">${esc(s.slug)}</div>
+            <div class="name">${esc(s.name)}</div>
+            <div class="meta">${esc(s.kind)} · last seen ${fmtWhen(lastPublished)}</div>
+            <div class="meta-row">
+              <span class="health ${h.cls}">${h.label}</span>
+              <span class="count">${count.toLocaleString()} advisories</span>
+            </div>
+            ${s.url ? `<div class="meta"><a href="${esc(s.url)}" target="_blank" rel="noopener">URL oficial ↗</a></div>` : ''}
+          </div>`;
+        }).join('');
+      });
     }
   </script>
 </Base>

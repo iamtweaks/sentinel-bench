@@ -1,49 +1,54 @@
 ---
 import Base from '../layouts/Base.astro';
 ---
-<Base title="Sentinel-Bench — About">
-  <h1>About</h1>
-  <div class="detail">
-    <p><strong>Sentinel-Bench</strong> es un laboratorio personal de <em>Cyber Threat Intelligence</em>:
-    ingesta pública de vulnerabilidades, las prioriza por <strong>evidencia real de explotación</strong>
-    (no solo CVSS) y entrega un briefing diario por Telegram + un dashboard público.</p>
+<Base title="Sentinel-Bench — About" active="about">
+  <div class="about-wrap">
+    <div class="about-hero">
+      <h1>Sentinel-Bench</h1>
+      <p style="margin:0;color:var(--muted);font-size:13.5px">Laboratorio personal de <em style="color:var(--accent)">Cyber Threat Intelligence</em> · ingestión pública · scoring sin LLM · dashboard abierto.</p>
+    </div>
 
-    <h2>Fuentes (todas públicas)</h2>
-    <ul>
-      <li><strong>CISA KEV</strong> — Known Exploited Vulnerabilities catalog</li>
-      <li><strong>NVD</strong> — National Vulnerability Database (CVSS, CPE)</li>
-      <li><strong>FIRST EPSS</strong> — Exploit Prediction Scoring System</li>
-      <li><strong>GitHub Security Advisories</strong> — Curated advisories + PoC URLs</li>
-      <li><strong>MSRC CVRF</strong> — Microsoft Security Response Center (security updates)</li>
-    </ul>
+    <div class="about-card">
+      <h2>Misión</h2>
+      <p>Monitorear vulnerabilidades reales con <strong>evidencia de explotación</strong> (no solo CVSS). Combinar feeds públicos abiertos en un solo dashboard priorizado, y entregar un briefing diario por Telegram.</p>
 
-    <h2>Scoring</h2>
-    <p>Score 0–100, sin LLM. Combina:</p>
-    <ul>
-      <li>30 × KEV (CISA)</li>
-      <li>25 × EPSS percentile ≥ 99%</li>
-      <li>15 × EPSS score (si ≥ 50%)</li>
-      <li>12 × CVSS v3 / 10</li>
-      <li>8 × factor de explotación (confirmed / PoC / probable)</li>
-      <li>5 × recencia (&lt; 7d / &lt; 30d / &lt; 90d)</li>
-      <li>3 × diversidad de fuentes independientes</li>
-      <li>2 × vendor de alta exposición</li>
-    </ul>
-    <p>Cada CVE persiste su <code>score</code> y el desglose <code>factors</code> (jsonb). Si un dato falta, queda <code>null</code> explícito — no se inventa.</p>
+      <h2>Fuentes (todas abiertas)</h2>
+      <ul>
+        <li><strong>CISA KEV</strong> — Known Exploited Vulnerabilities catalog</li>
+        <li><strong>NVD</strong> — National Vulnerability Database (CVSS, CPE)</li>
+        <li><strong>FIRST EPSS</strong> — Exploit Prediction Scoring System</li>
+        <li><strong>GitHub Security Advisories</strong> — Curated advisories + PoC URLs</li>
+        <li><strong>MSRC CVRF</strong> — Microsoft Security Response Center</li>
+      </ul>
 
-    <h2>Privacidad</h2>
-    <p>100% inteligencia pública. No conecta a infra corporativa, no usa IoCs privados, no scrapea contenido sensible. Apto como portfolio público Blue Team.</p>
+      <h2>Scoring</h2>
+      <p>Score <strong>0–100</strong>, sin LLM. Combina:</p>
+      <ul>
+        <li><strong>30</strong> × KEV (CISA)</li>
+        <li><strong>25</strong> × EPSS percentile ≥ 99%</li>
+        <li><strong>15</strong> × EPSS score (si ≥ 50%)</li>
+        <li><strong>12</strong> × CVSS v3 / 10</li>
+        <li><strong>8</strong> × factor de explotación (confirmed / PoC / probable)</li>
+        <li><strong>5</strong> × recencia (&lt; 7d / &lt; 30d / &lt; 90d)</li>
+        <li><strong>3</strong> × diversidad de fuentes independientes</li>
+        <li><strong>2</strong> × vendor de alta exposición</li>
+      </ul>
+      <p>Cada CVE persiste su <code>score</code> y el desglose <code>factors</code> (jsonb). Si un dato falta, queda <code>null</code> explícito — no se inventa.</p>
 
-    <h2>Stack</h2>
-    <ul>
-      <li>Ingesta: Python (stdlib only — <code>urllib</code>, <code>json</code>, <code>hashlib</code>)</li>
-      <li>Persistencia: Supabase (Postgres + REST)</li>
-      <li>Síntesis: Hermes (solo cuando hay cambios)</li>
-      <li>Entrega: Telegram (bot existente) + Astro static → Vercel</li>
-      <li>Orquestación: cron (siguiendo el patrón de <code>brief_7am.py</code>)</li>
-    </ul>
+      <h2>Privacidad</h2>
+      <p>100% inteligencia pública. No conecta a infra corporativa, no usa IoCs privados, no scrapea contenido sensible. Apto como portfolio público Blue Team.</p>
 
-    <h2>Repo</h2>
-    <p><a href="https://github.com/iamtweaks/sentinel-bench" rel="noopener" target="_blank">github.com/iamtweaks/sentinel-bench</a></p>
+      <h2>Stack</h2>
+      <ul>
+        <li><strong>Ingesta:</strong> Python (stdlib only — <code>urllib</code>, <code>json</code>, <code>hashlib</code>)</li>
+        <li><strong>Persistencia:</strong> Supabase (Postgres + REST)</li>
+        <li><strong>Síntesis:</strong> Hermes (solo cuando hay cambios)</li>
+        <li><strong>Entrega:</strong> Telegram + Astro static → Vercel</li>
+        <li><strong>Orquestación:</strong> cron (siguiendo el patrón de <code>brief_7am.py</code>)</li>
+      </ul>
+
+      <h2>Repo</h2>
+      <p style="margin-bottom:0"><a href="https://github.com/iamtweaks/sentinel-bench" rel="noopener" target="_blank">github.com/iamtweaks/sentinel-bench</a></p>
+    </div>
   </div>
 </Base>

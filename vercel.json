@@ -1,15 +1,5 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "dashboard/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dashboard/dist"
-      }
-    }
-  ],
-  "outputDirectory": "dashboard/dist",
-  "installCommand": "cd dashboard && npm install",
-  "buildCommand": "cd dashboard && PUBLIC_SUPABASE_URL=https://pptggwssynujjdtzudbq.supabase.co PUBLIC_SUPABASE_ANON_KEY=$(grep ANON /root/projects/sentinel-bench/.supabase-creds | cut -d= -f2) npm run build"
+  "buildCommand": "cd dashboard && npm install --silent && npx astro build",
+  "outputDirectory": "dashboard/dist"
 }

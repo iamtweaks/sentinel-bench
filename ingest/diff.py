@@ -334,7 +334,13 @@ def main():
         print(msg[:2000])
         return
 
-    sent = send_telegram(msg)
+    # Feedback loop: dashboard is the read path. Telegram is opt-in via env.
+    # ponytail: env flag — flip BRIEF_TELEGRAM=1 when user wants the daily push.
+    if os.environ.get("BRIEF_TELEGRAM", "0") != "1":
+        print(f"DRY SILENT — telegram suppressed by BRIEF_TELEGRAM=0 (len={len(msg)} hash={sig_hash})")
+        sent = False
+    else:
+        sent = send_telegram(msg)
     finished = datetime.now(timezone.utc)
     if run_id:
         try:
