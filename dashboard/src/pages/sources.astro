@@ -37,33 +37,43 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
       return d.toISOString().slice(0, 10);
     }
 
+    // ponytail: two-step query keeps it simple — aggregate count separately so PostgREST doesn't complain about mixing scalar + aggregate.
     if (!sb) {
       const el = document.getElementById('src-grid');
       if (el) el.innerHTML = '<p style="color:var(--crit)">Faltan env vars de Supabase.</p>';
     } else {
-      sb.from('sources')
-        .select('id,slug,name,kind,url,enabled,advisories(published_at,count)')
-        .order('slug')
-        .then(({ data, error }) => {
-          const grid = document.getElementById('src-grid');
-          if (!grid) return;
-          if (error) { grid.innerHTML = `<p style="color:var(--crit)">${esc(error.message)}</p>`; return; }
-          grid.innerHTML = (data || []).map((s, i) => {
-            const count = (s.advisories && s.advisories[0] && s.advisories[0].count) || 0;
-            const lastPublished = (s.advisories && s.advisories[0] && s.advisories[0].published_at) || null;
-            const h = healthFor(lastPublished, s.enabled);
-            return `<div class="source-card" style="--delay:${Math.min(i, 24) * 30}ms">
-              <div class="slug">${esc(s.slug)}</div>
-              <div class="name">${esc(s.name)}</div>
-              <div class="meta">${esc(s.kind)} · last seen ${fmtWhen(lastPublished)}</div>
-              <div class="meta-row">
-                <span class="health ${h.cls}">${h.label}</span>
-                <span class="count">${count.toLocaleString()} advisories</span>
-              </div>
-              ${s.url ? `<div class="meta"><a href="${esc(s.url)}" target="_blank" rel="noopener">URL oficial ↗</a></div>` : ''}
-            </div>`;
-          }).join('');
-        });
+      Promise.all([
+        sb.from('sources').select('id,slug,name,kind,url,enabled').order('slug'),
+        sb.from('advisories').select('source_id,published_at').order('published_at', { ascending: false }).limit(2000),
+      ]).then(([srcRes, advRes]) => {
+        const grid = document.getElementById('src-grid');
+        if (!grid) return;
+        if (srcRes.error) { grid.innerHTML = `<p style="color:var(--crit)">${esc(srcRes.error.message)}</p>`; return; }
+        const sources = srcRes.data || [];
+        const advs = advRes.data || [];
+        const lastPerSource = new Map<string, string>();
+        const countPerSource = new Map<string, number>();
+        for (const a of advs) {
+          if (!a.source_id) continue;
+          countPerSource.set(a.source_id, (countPerSource.get(a.source_id) || 0) + 1);
+          if (!lastPerSource.has(a.source_id)) lastPerSource.set(a.source_id, a.published_at);
+        }
+        grid.innerHTML = sources.map((s, i) => {
+          const count = countPerSource.get(s.id) || 0;
+          const lastPublished = lastPerSource.get(s.id) || null;
+          const h = healthFor(lastPublished, s.enabled);
+          return `<div class="source-card" style="--delay:${Math.min(i, 24) * 30}ms">
+            <div class="slug">${esc(s.slug)}</div>
+            <div class="name">${esc(s.name)}</div>
+            <div class="meta">${esc(s.kind)} · last seen ${fmtWhen(lastPublished)}</div>
+            <div class="meta-row">
+              <span class="health ${h.cls}">${h.label}</span>
+              <span class="count">${count.toLocaleString()} advisories</span>
+            </div>
+            ${s.url ? `<div class="meta"><a href="${esc(s.url)}" target="_blank" rel="noopener">URL oficial ↗</a></div>` : ''}
+          </div>`;
+        }).join('');
+      });
     }
   </script>
 </Base>
