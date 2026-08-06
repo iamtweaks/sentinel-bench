@@ -3,6 +3,9 @@ import Base from '../layouts/Base.astro';
 
 const SUPABASE_URL = import.meta.env.PUBLIC_SUPABASE_URL || '';
 const SUPABASE_ANON = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || '';
+// JSON-serialize so define:vars injects string literals, not bare identifiers.
+const SUPABASE_URL_JSON = JSON.stringify(SUPABASE_URL);
+const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
 ---
 <Base title="Sentinel-Bench — Top Amenazas">
   <h1>Top Amenazas</h1>
@@ -62,10 +65,7 @@ const SUPABASE_ANON = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || '';
     <div class="empty">Cargando advisories OT…</div>
   </div>
 
-  <script is:inline define:vars={{ SUPABASE_URL, SUPABASE_ANON }}>
-    window.__SB_URL = SUPABASE_URL;
-    window.__SB_ANON = SUPABASE_ANON;
-  </script>
+  <script is:inline set:html={`window.__SB_URL = ${SUPABASE_URL_JSON}; window.__SB_ANON = ${SUPABASE_ANON_JSON};`}></script>
   <script>
     import { sb } from '../lib/sb';
     import { renderRows, renderOtCards, bindRowClicks, renderDetail } from '../lib/render';
