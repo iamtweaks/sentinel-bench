@@ -1,9 +1,6 @@
 ---
 import Base from '../layouts/Base.astro';
 
-// Embed Supabase anon credentials into the page at build time so the dashboard
-// can query the public Supabase REST endpoint directly. These are NOT secrets —
-// they are publishable keys for a public-read DB. (Rotate later via RLS if needed.)
 const SUPABASE_URL = import.meta.env.PUBLIC_SUPABASE_URL || '';
 const SUPABASE_ANON = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || '';
 ---
@@ -13,65 +10,57 @@ const SUPABASE_ANON = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || '';
     <strong>Cyber Threat Intelligence</strong> personal — vulnerabilidades priorizadas
     por <em>explotación real</em>, no solo CVSS. Combina CISA KEV, EPSS, NVD CVSS, GitHub
     Security Advisories y Microsoft MSRC.
-    <p>Top 5 priorizadas por score (KEV + EPSS + CVSS + evidencia de exploit + recencia).
-    Fedeá search y filtros abajo. Última actualización: <span id="updated">cargando…</span></p>
+    <p>Top priorizadas por score (KEV + EPSS + CVSS + evidencia de exploit + recencia).
+    Buscá y filtrá abajo. Última actualización: <span id="updated">cargando…</span></p>
     <div class="kpis">
-      <div class="kpi"><div class="v" id="kpi-kev">–</div><div class="l">CVE en CISA KEV</div></div>
-      <div class="kpi"><div class="v" id="kpi-total">–</div><div class="l">Vulnerabilidades</div></div>
-      <div class="kpi"><div class="v" id="kpi-poc">–</div><div class="l">PoC público</div></div>
-      <div class="kpi"><div class="v" id="kpi-sources">–</div><div class="l">Fuentes activas</div></div>
+      <div class="kpi kev"><div class="v" id="kpi-kev">–</div><div class="l">CVE en CISA KEV</div></div>
+      <div class="kpi total"><div class="v" id="kpi-total">–</div><div class="l">Vulnerabilidades</div></div>
+      <div class="kpi poc"><div class="v" id="kpi-poc">–</div><div class="l">PoC público</div></div>
+      <div class="kpi sources"><div class="v" id="kpi-sources">–</div><div class="l">Fuentes activas</div></div>
     </div>
   </div>
 
   <div class="filters">
-    <input id="q" type="text" placeholder="Buscar CVE, vendor, producto…" />
-    <select id="kev-filter">
+    <input id="q" class="q" type="text" placeholder="Buscar CVE, vendor, producto…" />
+    <select id="kev-filter" aria-label="Filtro KEV">
       <option value="">KEV (todos)</option>
       <option value="true">Solo KEV</option>
       <option value="false">Sin KEV</option>
     </select>
-    <select id="severity-filter">
+    <select id="severity-filter" aria-label="Filtro severidad">
       <option value="">Severidad (todas)</option>
       <option value="CRITICAL">Critical (CVSS ≥ 9)</option>
       <option value="HIGH">High (7–8.9)</option>
       <option value="MEDIUM">Medium (4–6.9)</option>
       <option value="LOW">Low (&lt; 4)</option>
     </select>
-    <select id="exploit-filter">
+    <select id="exploit-filter" aria-label="Filtro explotación">
       <option value="">Explotación (todas)</option>
       <option value="confirmed">Confirmada (KEV)</option>
       <option value="poc">PoC público</option>
       <option value="probable">Probable</option>
       <option value="unknown">Sin evidencia</option>
     </select>
-    <label><input type="checkbox" id="sort-score" checked /> Ordenar por score</label>
+    <label class="toggle"><input type="checkbox" id="sort-score" checked /> Ordenar por score</label>
   </div>
 
-  <table id="tbl">
-    <thead>
-      <tr>
-        <th>CVE</th>
-        <th>Score</th>
-        <th>CVSS</th>
-        <th>EPSS</th>
-        <th>Vendor</th>
-        <th>Explotación</th>
-        <th>Rationale</th>
-        <th>Actualizado</th>
-      </tr>
-    </thead>
-    <tbody id="rows">
-      <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Cargando…</td></tr>
-    </tbody>
-  </table>
+  <div class="section-head">
+    <h2>IT — Vulnerabilidades</h2>
+    <span class="meta"><span id="it-count">—</span> resultados</span>
+  </div>
+  <div id="it-grid" class="cards-grid">
+    <div class="empty">Cargando…</div>
+  </div>
 
   <div id="detail-pane" style="display:none;margin-top:24px"></div>
 
-  <section class="ot-section" aria-labelledby="ot-title">
-    <h2 id="ot-title">OT / ICS Advisories</h2>
-    <p class="muted">Fuentes industriales separadas de IT: vendors, ICS/SCADA y edge de planta.</p>
-    <div id="ot-rows" class="ot-grid"><p class="muted">Cargando advisories OT…</p></div>
-  </section>
+  <div class="section-head">
+    <h2>OT / ICS — Advisories</h2>
+    <span class="meta">Fuentes industriales, vendors, ICS/SCADA y edge de planta</span>
+  </div>
+  <div id="ot-grid" class="cards-grid">
+    <div class="empty">Cargando advisories OT…</div>
+  </div>
 
   <script is:inline define:vars={{ SUPABASE_URL, SUPABASE_ANON }}>
     window.__SB_URL = SUPABASE_URL;
@@ -79,11 +68,11 @@ const SUPABASE_ANON = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || '';
   </script>
   <script>
     import { sb } from '../lib/sb';
-    import { renderRows, bindRowClicks, renderDetail } from '../lib/render';
+    import { renderRows, renderOtCards, bindRowClicks, renderDetail } from '../lib/render';
 
     if (!sb) {
-      document.getElementById('rows').innerHTML =
-        '<tr><td colspan="8" style="text-align:center;color:var(--crit);padding:30px">Faltan PUBLIC_SUPABASE_URL / PUBLIC_SUPABASE_ANON_KEY. Configurá las env vars en Vercel.</td></tr>';
+      document.getElementById('it-grid').innerHTML =
+        '<div class="empty" style="color:var(--crit)">Faltan PUBLIC_SUPABASE_URL / PUBLIC_SUPABASE_ANON_KEY. Configurá las env vars en Vercel.</div>';
     } else {
       const state = {
         rows: [],
@@ -91,65 +80,49 @@ const SUPABASE_ANON = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || '';
         filters: { q: '', kev: '', severity: '', exploit: '' }
       };
 
-      const escapeHtml = (v = '') => String(v).replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
+      const escapeHtml = (v: any = '') => String(v).replace(/[&<>"']/g, (c: string) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 
       async function loadOt() {
-        const target = document.getElementById('ot-rows');
+        const target = document.getElementById('ot-grid');
         const { data, error } = await sb
           .from('advisories')
           .select('title,summary,url,severity,published_at,vendors,cve_ids')
           .eq('domain', 'OT')
           .order('published_at', { ascending: false, nullsFirst: false })
-          .limit(50);
+          .limit(60);
         if (error) {
-          target.innerHTML = `<p class="muted">OT no disponible: ${escapeHtml(error.message)}</p>`;
+          target.innerHTML = `<div class="empty">OT no disponible: ${escapeHtml(error.message)}</div>`;
           return;
         }
-        if (!data?.length) {
-          target.innerHTML = '<p class="muted">Todavía no hay advisories OT.</p>';
-          return;
-        }
-        target.innerHTML = data.map(a => {
-          const title = escapeHtml(a.title || 'Advisory sin título');
-          const summary = escapeHtml(a.summary || '').slice(0, 300);
-          const vendor = escapeHtml((a.vendors || []).join(', ') || 'OT');
-          const cves = escapeHtml((a.cve_ids || []).join(', '));
-          const when = a.published_at ? new Date(a.published_at).toISOString().slice(0, 10) : 'fecha desconocida';
-          const body = `<article class="ot-card"><div class="ot-meta"><b>${vendor}</b> · ${when}${cves ? ` · ${cves}` : ''}</div><h3>${title}</h3><p>${summary}</p></article>`;
-          return a.url ? `<a href="${escapeHtml(a.url)}" target="_blank" rel="noopener noreferrer">${body}</a>` : body;
-        }).join('');
+        renderOtCards(target, data || []);
       }
 
       async function load() {
-        // Pull latest score per CVE
         const { data: scores, error } = await sb
           .from('risk_scores')
           .select('cve_id, score, factors, rationale, computed_at')
           .order('computed_at', { ascending: false })
           .limit(2000);
         if (error) {
-          document.getElementById('rows').innerHTML = `<tr><td colspan=8 style="color:var(--crit);padding:30px">Error: ${error.message}</td></tr>`;
+          document.getElementById('it-grid').innerHTML = `<div class="empty" style="color:var(--crit)">Error: ${escapeHtml(error.message)}</div>`;
           return;
         }
-        // Dedupe latest per cve_id
-        const seen = new Set();
-        const top = [];
+        const seen = new Set<string>();
+        const top: any[] = [];
         for (const r of scores || []) {
           if (seen.has(r.cve_id)) continue;
           seen.add(r.cve_id);
           top.push(r);
         }
-        // Pull vuln metadata in one query
         const cveIds = top.map(r => r.cve_id);
-        let vulns = [];
+        let vulns: any[] = [];
         if (cveIds.length) {
-          const filter = `cve_id=in.(${cveIds.map(c => `"${c}"`).join(',')})`;
-          const { data } = await sb.from('vulnerabilities').select('cve_id,cvss_v3_score,epss_score,is_kev,vendors,products,exploited_in_wild,poc_public,last_updated_at').filter('cve_id', 'in', `(${cveIds.map(c => `"${c}"`).join(',')})`);
+          const { data } = await sb.from('vulnerabilities').select('cve_id,cvss_v3_score,epss_score,is_kev,vendors,products,exploited_in_wild,poc_public,last_updated_at,description').in('cve_id', cveIds);
           vulns = data || [];
         }
-        const vmap = Object.fromEntries(vulns.map(v => [v.cve_id, v]));
+        const vmap = Object.fromEntries(vulns.map((v: any) => [v.cve_id, v]));
         state.rows = top.map(s => ({ ...s, vuln: vmap[s.cve_id] || {} }));
-        // KPIs
+
         const kevCount = state.rows.filter(r => r.vuln.is_kev).length;
         const pocCount = state.rows.filter(r => r.vuln.poc_public).length;
         const total = state.rows.length;
@@ -159,23 +132,22 @@ const SUPABASE_ANON = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || '';
         document.getElementById('kpi-poc').textContent = pocCount.toLocaleString();
         document.getElementById('kpi-sources').textContent = '5';
         document.getElementById('updated').textContent = updated ? new Date(updated).toISOString().replace('T', ' ').slice(0, 16) + ' UTC' : '—';
-        // Source counts
-        sb.from('sources').select('*', { count: 'exact', head: true }).then(({ count }) => {
+        sb.from('sources').select('*', { count: 'exact', head: true }).then(({ count }: any) => {
           document.getElementById('kpi-sources').textContent = (count ?? '—').toString();
         });
         render();
       }
 
-      function applyFilters(rows) {
+      function applyFilters(rows: any[]) {
         const f = state.filters;
-        return rows.filter(r => {
+        return rows.filter((r: any) => {
           if (f.kev === 'true' && !r.vuln.is_kev) return false;
           if (f.kev === 'false' && r.vuln.is_kev) return false;
           if (f.exploit === 'confirmed' && !r.vuln.exploited_in_wild) return false;
           if (f.exploit === 'poc' && !r.vuln.poc_public) return false;
           if (f.exploit === 'unknown' && (r.vuln.exploited_in_wild || r.vuln.poc_public)) return false;
           if (f.q) {
-            const v = (r.vuln.vendors || []).join(' ') + ' ' + (r.vuln.products || []).join(' ') + ' ' + r.cve_id;
+            const v = ((r.vuln.vendors || []).join(' ')) + ' ' + ((r.vuln.products || []).join(' ')) + ' ' + r.cve_id;
             if (!v.toLowerCase().includes(f.q.toLowerCase())) return false;
           }
           if (f.severity) {
@@ -191,19 +163,21 @@ const SUPABASE_ANON = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || '';
 
       function render() {
         let rows = applyFilters(state.rows);
-        if (state.sortByScore) rows.sort((a, b) => b.score - a.score);
-        renderRows(document.getElementById('rows'), rows);
-        bindRowClicks(document.getElementById('rows'), (cve) => {
-          const detail = state.rows.find(r => r.cve_id === cve);
+        if (state.sortByScore) rows.sort((a: any, b: any) => b.score - a.score);
+        const grid = document.getElementById('it-grid');
+        renderRows(grid, rows);
+        document.getElementById('it-count').textContent = rows.length.toLocaleString();
+        bindRowClicks(grid, (cve: string) => {
+          const detail = state.rows.find((r: any) => r.cve_id === cve);
           renderDetail(document.getElementById('detail-pane'), detail);
         });
       }
 
-      document.getElementById('q').addEventListener('input', e => { state.filters.q = e.target.value; render(); });
-      document.getElementById('kev-filter').addEventListener('change', e => { state.filters.kev = e.target.value; render(); });
-      document.getElementById('severity-filter').addEventListener('change', e => { state.filters.severity = e.target.value; render(); });
-      document.getElementById('exploit-filter').addEventListener('change', e => { state.filters.exploit = e.target.value; render(); });
-      document.getElementById('sort-score').addEventListener('change', e => { state.sortByScore = e.target.checked; render(); });
+      document.getElementById('q').addEventListener('input', e => { state.filters.q = (e.target as HTMLInputElement).value; render(); });
+      document.getElementById('kev-filter').addEventListener('change', e => { state.filters.kev = (e.target as HTMLSelectElement).value; render(); });
+      document.getElementById('severity-filter').addEventListener('change', e => { state.filters.severity = (e.target as HTMLSelectElement).value; render(); });
+      document.getElementById('exploit-filter').addEventListener('change', e => { state.filters.exploit = (e.target as HTMLSelectElement).value; render(); });
+      document.getElementById('sort-score').addEventListener('change', e => { state.sortByScore = (e.target as HTMLInputElement).checked; render(); });
 
       load();
       loadOt();
