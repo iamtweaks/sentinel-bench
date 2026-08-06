@@ -1,5 +1,5 @@
 {
   "version": 2,
-  "buildCommand": "cd dashboard && npm install --silent && PUBLIC_SUPABASE_URL=https://pptggwssynujjdtzudbq.supabase.co PUBLIC_SUPABASE_ANON_KEY=$(grep ANON /root/projects/sentinel-bench/.supabase-creds | cut -d= -f2) npx astro build",
+  "buildCommand": "cd dashboard && npm install --silent && npx astro build",
   "outputDirectory": "dashboard/dist"
 }
