@@ -1,19 +1,4 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "dashboard/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dashboard/dist"
-      }
-    }
-  ],
-  "outputDirectory": "dashboard/dist",
-  "routes": [
-    { "src": "/dashboard/(.*)", "dest": "/$1" },
-    { "src": "/dashboard", "dest": "/" }
-  ],
-  "installCommand": "cd dashboard && npm install",
-  "buildCommand": "cd dashboard && PUBLIC_SUPABASE_URL=https://pptggwssynujjdtzudbq.supabase.co PUBLIC_SUPABASE_ANON_KEY=$(grep ANON /root/projects/sentinel-bench/.supabase-creds | cut -d= -f2) npx astro build"
+  "buildCommand": "cd dashboard && PUBLIC_SUPABASE_URL=https://pptggwssynujjdtzudbq.supabase.co PUBLIC_SUPABASE_ANON_KEY=$(grep ANON /root/projects/sentinel-bench/.supabase-creds | cut -d= -f2) npx astro build && mkdir -p ../dist && cp -r dist/. ../dist/"
 }
