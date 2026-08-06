@@ -5,11 +5,11 @@
       "src": "dashboard/package.json",
       "use": "@vercel/static-build",
       "config": {
-        "distDir": "dist"
+        "distDir": "dashboard/dist"
       }
     }
   ],
-  "outputDirectory": "dist",
+  "outputDirectory": "dashboard/dist",
   "installCommand": "cd dashboard && npm install",
   "buildCommand": "cd dashboard && PUBLIC_SUPABASE_URL=https://pptggwssynujjdtzudbq.supabase.co PUBLIC_SUPABASE_ANON_KEY=$(grep ANON /root/projects/sentinel-bench/.supabase-creds | cut -d= -f2) npx astro build"
 }
