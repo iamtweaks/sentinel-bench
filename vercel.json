@@ -11,5 +11,5 @@
   ],
   "outputDirectory": "dashboard/dist",
   "installCommand": "cd dashboard && npm install",
-  "buildCommand": "cd dashboard && PUBLIC_SUPABASE_URL=https://pptggwssynujjdtzudbq.supabase.co PUBLIC_SUPABASE_ANON_KEY=$(grep ANON /root/projects/sentinel-bench/.supabase-creds | cut -d= -f2) npm run build"
+  "buildCommand": "PUBLIC_SUPABASE_URL=https://pptggwssynujjdtzudbq.supabase.co PUBLIC_SUPABASE_ANON_KEY=$(grep ANON /root/projects/sentinel-bench/.supabase-creds | cut -d= -f2) npm run build --prefix dashboard"
 }
