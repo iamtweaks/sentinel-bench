@@ -25,45 +25,63 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
 
   <div class="filters">
     <input id="q" class="q" type="text" placeholder="Buscar CVE, vendor, producto…" />
-    <select id="kev-filter" aria-label="Filtro KEV">
-      <option value="">KEV (todos)</option>
-      <option value="true">Solo KEV</option>
-      <option value="false">Sin KEV</option>
-    </select>
-    <select id="severity-filter" aria-label="Filtro severidad">
-      <option value="">Severidad (todas)</option>
-      <option value="CRITICAL">Critical (CVSS ≥ 9)</option>
-      <option value="HIGH">High (7–8.9)</option>
-      <option value="MEDIUM">Medium (4–6.9)</option>
-      <option value="LOW">Low (&lt; 4)</option>
-    </select>
-    <select id="exploit-filter" aria-label="Filtro explotación">
-      <option value="">Explotación (todas)</option>
-      <option value="confirmed">Confirmada (KEV)</option>
-      <option value="poc">PoC público</option>
-      <option value="probable">Probable</option>
-      <option value="unknown">Sin evidencia</option>
-    </select>
+
+    <div class="chip-group" role="radiogroup" aria-label="Dominio">
+      <span class="chip-label">Dominio</span>
+      <button class="chip is-on" data-domain="" type="button" role="radio" aria-checked="true">Ambos</button>
+      <button class="chip chip-it" data-domain="it" type="button" role="radio" aria-checked="false">IT</button>
+      <button class="chip chip-ot" data-domain="ot" type="button" role="radio" aria-checked="false">OT</button>
+    </div>
+
+    <div class="chip-group" role="radiogroup" aria-label="KEV">
+      <span class="chip-label">KEV</span>
+      <button class="chip is-on" data-kev="" type="button" role="radio" aria-checked="true">Todos</button>
+      <button class="chip chip-act" data-kev="true" type="button" role="radio" aria-checked="false">Solo KEV</button>
+      <button class="chip" data-kev="false" type="button" role="radio" aria-checked="false">Sin KEV</button>
+    </div>
+
+    <div class="chip-group" role="radiogroup" aria-label="Severidad">
+      <span class="chip-label">Severidad</span>
+      <button class="chip is-on" data-severity="" type="button" role="radio" aria-checked="true">Todas</button>
+      <button class="chip chip-crit" data-severity="CRITICAL" type="button" role="radio" aria-checked="false">Critical</button>
+      <button class="chip chip-high" data-severity="HIGH" type="button" role="radio" aria-checked="false">High</button>
+      <button class="chip chip-med" data-severity="MEDIUM" type="button" role="radio" aria-checked="false">Medium</button>
+      <button class="chip chip-low" data-severity="LOW" type="button" role="radio" aria-checked="false">Low</button>
+    </div>
+
+    <div class="chip-group" role="radiogroup" aria-label="Explotación">
+      <span class="chip-label">Explotación</span>
+      <button class="chip is-on" data-exploit="" type="button" role="radio" aria-checked="true">Todas</button>
+      <button class="chip chip-act" data-exploit="confirmed" type="button" role="radio" aria-checked="false">Confirmada</button>
+      <button class="chip chip-high" data-exploit="poc" type="button" role="radio" aria-checked="false">PoC</button>
+      <button class="chip chip-med" data-exploit="probable" type="button" role="radio" aria-checked="false">Probable</button>
+      <button class="chip" data-exploit="unknown" type="button" role="radio" aria-checked="false">Sin evidencia</button>
+    </div>
+
     <label class="toggle"><input type="checkbox" id="sort-score" checked /> Ordenar por score</label>
   </div>
 
-  <div class="section-head">
-    <h2>IT — Vulnerabilidades</h2>
-    <span class="meta"><span id="it-count">—</span> resultados</span>
-  </div>
-  <div id="it-grid" class="cards-grid">
-    <div class="empty">Cargando…</div>
-  </div>
+  <section id="it-section">
+    <div class="section-head">
+      <h2>IT — Vulnerabilidades</h2>
+      <span class="meta"><span id="it-count">—</span> resultados</span>
+    </div>
+    <div id="it-grid" class="cards-grid">
+      <div class="empty">Cargando…</div>
+    </div>
+  </section>
 
-  <div id="detail-pane" style="display:none;margin-top:24px"></div>
+  <div id="detail-pane"></div>
 
-  <div class="section-head">
-    <h2>OT / ICS — Advisories</h2>
-    <span class="meta">Fuentes industriales, vendors, ICS/SCADA y edge de planta</span>
-  </div>
-  <div id="ot-grid" class="cards-grid">
-    <div class="empty">Cargando advisories OT…</div>
-  </div>
+  <section id="ot-section">
+    <div class="section-head">
+      <h2>OT / ICS — Advisories</h2>
+      <span class="meta">Fuentes industriales, vendors, ICS/SCADA y edge de planta</span>
+    </div>
+    <div id="ot-grid" class="cards-grid">
+      <div class="empty">Cargando advisories OT…</div>
+    </div>
+  </section>
 
   <script is:inline set:html={`window.__SB_URL = ${SUPABASE_URL_JSON}; window.__SB_ANON = ${SUPABASE_ANON_JSON};`}></script>
   <script>
@@ -76,8 +94,9 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
     } else {
       const state = {
         rows: [],
+        otRows: [],
         sortByScore: true,
-        filters: { q: '', kev: '', severity: '', exploit: '' }
+        filters: { q: '', kev: '', severity: '', exploit: '', domain: '' },
       };
 
       const escapeHtml = (v: any = '') => String(v).replace(/[&<>"']/g, (c: string) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
@@ -94,7 +113,13 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
           target.innerHTML = `<div class="empty">OT no disponible: ${escapeHtml(error.message)}</div>`;
           return;
         }
-        renderOtCards(target, data || []);
+        if (!data || !data.length) {
+          target.innerHTML = '<div class="empty">Todavía no hay advisories OT.</div>';
+          return;
+        }
+        renderOtCards(target, data);
+        state.otRows = data;
+        applyOtDomainVisibility();
       }
 
       async function load() {
@@ -141,6 +166,7 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
       function applyFilters(rows: any[]) {
         const f = state.filters;
         return rows.filter((r: any) => {
+          // Domain filter is applied at render time (section visibility) — not here.
           if (f.kev === 'true' && !r.vuln.is_kev) return false;
           if (f.kev === 'false' && r.vuln.is_kev) return false;
           if (f.exploit === 'confirmed' && !r.vuln.exploited_in_wild) return false;
@@ -161,10 +187,62 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
         });
       }
 
+      function applyOtDomainVisibility() {
+        const ot = document.getElementById('ot-section') as HTMLElement | null;
+        const grid = document.getElementById('ot-grid');
+        if (!ot || !grid) return;
+        if (state.filters.domain === 'it') {
+          ot.style.display = 'none';
+        } else {
+          ot.style.display = '';
+        }
+      }
+
+      function setActive(group: Element, btn: HTMLElement) {
+        group.querySelectorAll<HTMLElement>('.chip').forEach(c => {
+          c.classList.remove('is-on');
+          c.setAttribute('aria-checked', 'false');
+        });
+        btn.classList.add('is-on');
+        btn.setAttribute('aria-checked', 'true');
+      }
+
+      function wireChipGroup(name: 'domain' | 'kev' | 'severity' | 'exploit') {
+        const group = document.querySelector(`.chip-group + .chip-group[data-name="${name}"], .chip-group[data-name="${name}"]`);
+        // Fallback: find group by data attribute (set below).
+        const target = group || document.querySelector(`[data-name="${name}"]`);
+        if (!target) return;
+        target.querySelectorAll<HTMLButtonElement>('button.chip').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const value = btn.dataset[name] ?? '';
+            (state.filters as any)[name] = value;
+            setActive(target, btn);
+            if (name === 'domain') applyOtDomainVisibility();
+            render();
+          });
+        });
+      }
+
+      // Tag the chip-groups so wireChipGroup can find them.
+      document.querySelectorAll('.chip-group').forEach(g => {
+        const label = g.getAttribute('aria-label')?.toLowerCase();
+        if (label === 'dominio') g.setAttribute('data-name', 'domain');
+        else if (label === 'kev') g.setAttribute('data-name', 'kev');
+        else if (label === 'severidad') g.setAttribute('data-name', 'severity');
+        else if (label === 'explotación') g.setAttribute('data-name', 'exploit');
+      });
+      wireChipGroup('domain');
+      wireChipGroup('kev');
+      wireChipGroup('severity');
+      wireChipGroup('exploit');
+
       function render() {
         let rows = applyFilters(state.rows);
         if (state.sortByScore) rows.sort((a: any, b: any) => b.score - a.score);
         const grid = document.getElementById('it-grid');
+        // IT section visibility (depends on whether we're hiding IT for OT-only)
+        const itSection = document.getElementById('it-section') as HTMLElement | null;
+        if (itSection) itSection.style.display = state.filters.domain === 'ot' ? 'none' : '';
         renderRows(grid, rows);
         document.getElementById('it-count').textContent = rows.length.toLocaleString();
         bindRowClicks(grid, (cve: string) => {
@@ -174,9 +252,6 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
       }
 
       document.getElementById('q').addEventListener('input', e => { state.filters.q = (e.target as HTMLInputElement).value; render(); });
-      document.getElementById('kev-filter').addEventListener('change', e => { state.filters.kev = (e.target as HTMLSelectElement).value; render(); });
-      document.getElementById('severity-filter').addEventListener('change', e => { state.filters.severity = (e.target as HTMLSelectElement).value; render(); });
-      document.getElementById('exploit-filter').addEventListener('change', e => { state.filters.exploit = (e.target as HTMLSelectElement).value; render(); });
       document.getElementById('sort-score').addEventListener('change', e => { state.sortByScore = (e.target as HTMLInputElement).checked; render(); });
 
       load();

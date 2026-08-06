@@ -156,8 +156,13 @@ export function renderRows(container: HTMLElement, rows: any[]) {
     container.innerHTML = '<div class="empty">Sin resultados para los filtros aplicados.</div>';
     return;
   }
-  const html = rows.slice(0, 200).map(renderItCard).join('');
-  container.innerHTML = html;
+  // ponytail: cascade animation — staggered per card, ~12ms each up to ~240ms cap.
+  const items = rows.slice(0, 200).map(renderItCard);
+  // Walk existing cards after innerHTML mutation to attach --delay via inline style.
+  container.innerHTML = items.join('');
+  container.querySelectorAll<HTMLElement>('.card').forEach((el, i) => {
+    el.style.setProperty('--delay', `${Math.min(i, 24) * 12}ms`);
+  });
 }
 
 export function renderOtCards(container: HTMLElement, advisories: any[]) {
@@ -166,6 +171,9 @@ export function renderOtCards(container: HTMLElement, advisories: any[]) {
     return;
   }
   container.innerHTML = advisories.slice(0, 60).map(renderOtCard).join('');
+  container.querySelectorAll<HTMLElement>('.card').forEach((el, i) => {
+    el.style.setProperty('--delay', `${Math.min(i, 24) * 12}ms`);
+  });
 }
 
 export function bindRowClicks(container: HTMLElement, onClick: (cve: string) => void) {
@@ -176,16 +184,28 @@ export function bindRowClicks(container: HTMLElement, onClick: (cve: string) => 
   });
 }
 
+const modalKeyHandler = (e: KeyboardEvent) => {
+  if (e.key === 'Escape') closeDetail(document.getElementById('detail-pane') as HTMLElement);
+};
+
 export function renderDetail(pane: HTMLElement, row: any) {
   if (!row) return;
-  pane.style.display = 'block';
   const v = row.vuln || {};
   const factors = JSON.stringify(row.factors || {}, null, 2);
+  const status = statusFor(row.score, v.is_kev);
+  const border = borderKeyFor(row.score, v.is_kev);
+  const cvss = v.cvss_v3_score != null ? v.cvss_v3_score.toFixed(1) : null;
+  const epss = v.epss_score != null ? (v.epss_score * 100).toFixed(2) + '%' : null;
+
+  pane.classList.add('modal-backdrop');
+  pane.removeAttribute('style');
   pane.innerHTML = `
-    <div class="detail">
-      <h2>${escapeHtml(row.cve_id)} — score ${row.score.toFixed(1)}</h2>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title" data-border="${border}">
+      <button class="modal-close" type="button" aria-label="Cerrar">×</button>
+      <span class="status-badge s-${status === 'act' ? 'act' : status === 'plan' ? 'plan' : status === 'mon' ? 'mon' : 'risk'}">${statusLabel(status)}</span>
+      <h2 id="modal-title">${escapeHtml(row.cve_id)} <span class="score-chip">score ${row.score.toFixed(1)}</span></h2>
       <div class="detail-grid">
-        <div class="k">CVSS v3</div><div>${v.cvss_v3_score ?? '—'}</div>
+        <div class="k">CVSS v3</div><div>${cvss ?? '—'}</div>
         <div class="k">EPSS</div><div>${v.epss_score != null ? (v.epss_score * 100).toFixed(3) + '% (percentil ' + ((v.epss_percentile || 0) * 100).toFixed(2) + '%)' : '—'}</div>
         <div class="k">KEV</div><div>${v.is_kev ? '✅ Sí (CISA KEV)' : '—'}</div>
         <div class="k">Explotación</div><div>${v.exploited_in_wild ? 'Confirmada en producción' : v.poc_public ? 'PoC público disponible' : 'Sin evidencia pública'}</div>
@@ -195,21 +215,43 @@ export function renderDetail(pane: HTMLElement, row: any) {
         <div class="k">Rationale</div><div>${escapeHtml(row.rationale || '—')}</div>
         <div class="k">Factores (raw)</div><div class="factors">${escapeHtml(factors)}</div>
       </div>
-      <div id="detail-sources" style="margin-top:18px"><strong>Fuentes:</strong> <span style="color:var(--muted)">cargando…</span></div>
+      <div class="detail-sources"><strong>Fuentes:</strong> <span style="color:var(--muted)">cargando…</span></div>
     </div>
   `;
+
+  const card = pane.querySelector('.modal-card') as HTMLElement;
+  const onBackdropClick = (e: MouseEvent) => {
+    if (e.target === pane) closeDetail(pane);
+  };
+  const closeBtn = pane.querySelector('.modal-close') as HTMLButtonElement;
+
+  pane.addEventListener('click', onBackdropClick);
+  closeBtn.addEventListener('click', e => { e.stopPropagation(); closeDetail(pane); });
+  card.addEventListener('click', e => e.stopPropagation());
+  document.addEventListener('keydown', modalKeyHandler);
+
+  document.body.classList.add('modal-open');
+
   if (sb) {
     sb.from('advisories')
       .select('url,title,source_id,sources!inner(slug)')
       .contains('cve_ids', [row.cve_id])
       .limit(20)
       .then(({ data }) => {
-        const el = document.getElementById('detail-sources');
+        const el = card.querySelector('.detail-sources');
         if (!el || !data) return;
         el.innerHTML = '<strong>Fuentes:</strong> ' + (data.length
-          ? data.map(d => `<a href="${d.url}" rel="noopener" target="_blank">[${(d as any).sources?.slug || 'src'}] ${escapeHtml((d.title || '').slice(0, 80))}</a>`).join('<br/>')
+          ? data.map(d => `<a href="${d.url}" rel="noopener" target="_blank">[${(d as any).sources?.slug || 'src'}] ${escapeHtml((d.title || '').slice(0, 80))}</a>`).join('')
           : '<em>Sin enlaces</em>');
       });
   }
-  pane.scrollIntoView({ behavior: 'smooth' });
 }
+
+export function closeDetail(pane: HTMLElement | null) {
+  if (!pane) return;
+  pane.classList.remove('modal-backdrop');
+  pane.innerHTML = '';
+  document.body.classList.remove('modal-open');
+  document.removeEventListener('keydown', modalKeyHandler);
+}
+
