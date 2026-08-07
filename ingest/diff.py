@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from ingest.lib import sb_headers, sb_url, sb_record_run, sb_patch_run, score_breakdown
 
-PROJECT_REF = open("/root/projects/sentinel-bench/.supabase-creds").readline().split("=",1)[1].strip()
+from ingest.ingest import PROJECT_REF
 
 
 def _postgrest_get(path: str) -> any:

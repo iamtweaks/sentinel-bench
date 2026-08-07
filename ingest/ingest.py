@@ -21,21 +21,40 @@ import time
 import traceback
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import urllib.request
 
 # Allow `python ingest/ingest.py` from project root
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from ingest.lib import (
-    SOURCES, http_get, http_get_json,
+    SOURCES, http_get, http_get_json, get_env,
     normalize_kev, normalize_epss, normalize_epss_to_vuln, normalize_ghsa, normalize_ghsa_to_vuln,
     normalize_nvd, normalize_nvd_to_vuln, normalize_msrc,
     sha256_json, sb_get_source_id_cached, sb_upsert_advisory, sb_upsert_vuln,
     sb_record_run, sb_patch_run, sb_headers, sb_url, HTTPError,
 )
 from ingest.lib.ot import normalize_rss_ot, normalize_csaf_ot, normalize_moxa_html
-import urllib.request
 
-PROJECT_REF = open("/root/projects/sentinel-bench/.supabase-creds").readline().split("=",1)[1].strip()
+def resolve_project_ref() -> str:
+    ref = get_env("SUPABASE_PROJECT_REF")
+    if ref:
+        return ref
+    url = get_env("PUBLIC_SUPABASE_URL") or get_env("SUPABASE_URL")
+    if url:
+        return url.replace("https://", "").replace(".supabase.co", "").split("/")[0]
+    for p in ["/root/projects/sentinel-bench/.supabase-creds", str(Path.home() / ".supabase-creds"), ".supabase-creds"]:
+        try:
+            pth = Path(p)
+            if pth.exists():
+                text = pth.read_text()
+                for line in text.splitlines():
+                    if "=" in line:
+                        return line.split("=", 1)[1].strip()
+        except Exception:
+            pass
+    return "zctyivjngflpynzskxvy"
+
+PROJECT_REF = resolve_project_ref()
 
 # ----------------------------- per-source fetchers -----------------------------
 
@@ -137,11 +156,7 @@ def fetch_nvd(cve_ids: list[str] | None = None, limit: int = 20,
     last_mod_start/end are ISO-8601 strings (e.g. '2026-07-28T00:00:00.000').
     When provided, NVD returns all CVEs modified in that window — use for daily diff.
     """
-    nvd_key = None
-    for line in open("/root/.hermes/.env").read().splitlines():
-        if line.startswith("NVD_API_KEY="):
-            nvd_key = line.split("=",1)[1].strip()
-            break
+    nvd_key = get_env("NVD_API_KEY")
     headers = {"apiKey": nvd_key} if nvd_key else {}
     if cve_ids:
         url = f"https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={','.join(cve_ids[:limit])}"
@@ -346,7 +361,7 @@ def fetch_paloalto(limit: int = 100) -> tuple[list[dict], list[dict], dict]:
 
 def fetch_nvd_ics(limit: int = 200) -> tuple[list[dict], list[dict], dict]:
     """Fetch free NVD CVEs matching ICS, marked OT without changing canonical NVD rows."""
-    nvd_key = next((line.split("=", 1)[1].strip() for line in open("/root/.hermes/.env") if line.startswith("NVD_API_KEY=")), "")
+    nvd_key = get_env("NVD_API_KEY")
     try:
         status, data = http_get_json(SOURCES["nvd_ics"]["url"].replace("2000", str(min(limit, 2000))), headers={"apiKey": nvd_key} if nvd_key else {})
     except HTTPError as e:

@@ -11,7 +11,7 @@ from urllib.error import HTTPError
 from ingest.lib.http import HTTPError as HTTPGetError
 from ingest.lib.supabase import sb_headers
 
-PROJECT_REF = open("/root/projects/sentinel-bench/.supabase-creds").readline().split("=",1)[1].strip()
+from ingest.ingest import PROJECT_REF
 
 
 def _postgrest(path: str, *, method: str = "GET") -> tuple[int, str]:

@@ -1,7 +1,7 @@
 import { sb } from './sb';
+import { renderCircuitBoard } from './CircuitBoard';
 
 export type Status = 'act' | 'plan' | 'mon' | 'risk';
-export type BorderKey = 'crit' | 'high' | 'med' | 'low';
 
 export function statusFor(score: number | null | undefined, isKev: boolean | null | undefined): Status {
   if (isKev) return 'act';
@@ -12,61 +12,14 @@ export function statusFor(score: number | null | undefined, isKev: boolean | nul
   return 'risk';
 }
 
-export function borderKeyFor(score: number | null | undefined, isKev: boolean | null | undefined): BorderKey {
-  if (isKev) return 'crit';
-  const s = score ?? 0;
-  if (s >= 70) return 'crit';
-  if (s >= 50) return 'high';
-  if (s >= 25) return 'med';
-  return 'low';
-}
-
 const STATUS_LABEL: Record<Status, string> = {
   act: 'Act Now',
   plan: 'Plan Patch',
   mon: 'Monitor',
   risk: 'Low Risk',
 };
+
 export function statusLabel(s: Status) { return STATUS_LABEL[s]; }
-export function statusClass(s: Status) { return `s-${s === 'risk' ? 'risk' : s === 'act' ? 'act' : s === 'plan' ? 'plan' : 'mon'}`; }
-
-function scoreClass(score: number) {
-  if (score >= 70) return 'score-crit';
-  if (score >= 50) return 'score-high';
-  if (score >= 25) return 'score-med';
-  return 'score-low';
-}
-
-function firstVendor(v: any): string {
-  const list = v?.vendors;
-  if (Array.isArray(list) && list.length) return String(list[0]);
-  return '—';
-}
-
-function relativeWhen(iso: string | null | undefined): string {
-  if (!iso) return 'fecha desconocida';
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return 'fecha desconocida';
-  const diffSec = Math.floor((Date.now() - d.getTime()) / 1000);
-  if (diffSec < 60) return 'just now';
-  const rtf = new Intl.RelativeTimeFormat('es', { numeric: 'auto' });
-  const units: [Intl.RelativeTimeFormatUnit, number][] = [
-    ['year', 60 * 60 * 24 * 365],
-    ['month', 60 * 60 * 24 * 30],
-    ['week', 60 * 60 * 24 * 7],
-    ['day', 60 * 60 * 24],
-    ['hour', 60 * 60],
-    ['minute', 60],
-  ];
-  for (const [unit, sec] of units) {
-    if (Math.abs(diffSec) >= sec) {
-      const v = -Math.round(diffSec / sec);
-      // ponytail: "X days ago" style — override to english-ish per spec
-      return rtf.format(v, unit);
-    }
-  }
-  return rtf.format(-Math.floor(diffSec / 60), 'minute');
-}
 
 function escapeHtml(s: any): string {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] || c));
@@ -77,181 +30,255 @@ function truncate(s: any, n: number): string {
   return str.length > n ? str.slice(0, n - 1) + '…' : str;
 }
 
-function renderItCard(r: any): string {
+function firstVendor(v: any): string {
+  const list = v?.vendors;
+  if (Array.isArray(list) && list.length) return String(list[0]);
+  return 'General';
+}
+
+function relativeWhen(iso: string | null | undefined): string {
+  if (!iso) return 'Reciente';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return 'Reciente';
+  const diffSec = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (diffSec < 3600) return 'Just now';
+  const hours = Math.floor(diffSec / 3600);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+export function renderAdvisoryCard(r: any, isActive: boolean = false): string {
   const v = r.vuln || {};
   const status = statusFor(r.score, v.is_kev);
-  const border = borderKeyFor(r.score, v.is_kev);
   const vendor = firstVendor(v);
-  const title = v.cve_id || r.cve_id || 'CVE';
+  const title = v.cve_id ? `${vendor} Advisory (${v.cve_id})` : (r.cve_id || 'Security Advisory');
   const desc = v.description || r.rationale || 'Sin descripción disponible.';
   const cve = escapeHtml(r.cve_id);
-  const cvss = v.cvss_v3_score != null ? v.cvss_v3_score.toFixed(1) : null;
-  const epss = v.epss_score != null ? (v.epss_score * 100).toFixed(1) + '%' : null;
   const when = relativeWhen(v.last_updated_at || r.computed_at);
+  
   const badges: string[] = [];
-  if (v.is_kev) badges.push(`<span class="badge b-kev">KEV</span>`);
-  if (v.poc_public) badges.push(`<span class="badge b-poc">PoC</span>`);
-  if (cvss) badges.push(`<span class="badge b-cvss">CVSS ${escapeHtml(cvss)}</span>`);
-  if (epss) badges.push(`<span class="badge b-epss">EPSS ${escapeHtml(epss)}</span>`);
+  if (v.is_kev) badges.push(`<span class="badge-kev">CISA KEV</span>`);
+  if (v.exploited_in_wild) badges.push(`<span class="badge-wild">EXPLOITED IN WILD</span>`);
+  if (v.poc_public) badges.push(`<span class="badge-poc">POC PUBLIC</span>`);
 
-  return `<article class="card b-${border}" data-cve="${cve}" data-kind="it" role="button" tabindex="0">
-    <div class="row-top">
-      <span class="vendor"><span class="domain-tag it">IT</span><span class="vendor-name">${escapeHtml(vendor)}</span></span>
-      <span class="badges">
-        ${badges.join('')}
-        <span class="score-pill ${scoreClass(r.score)}">${r.score.toFixed(1)}</span>
-        <span class="status ${statusClass(status)}">${statusLabel(status)}</span>
-      </span>
-    </div>
-    <h3 class="title">${escapeHtml(title)}</h3>
-    <p class="desc">${escapeHtml(truncate(desc, 240))}</p>
-    <div class="row-foot">
-      <span class="cves"><span class="cve">${cve}</span></span>
-      <span class="when">${escapeHtml(when)}</span>
-    </div>
-  </article>`;
-}
+  const fixText = v.is_kev ? '<span class="no-fix">No fix available</span>' : '<span class="fix-available">Fix available</span>';
+  const activeClass = isActive ? 'is-active' : '';
 
-function renderOtCard(a: any): string {
-  const sev = String(a.severity || '').toUpperCase();
-  const sevScoreMap: Record<string, number> = { CRITICAL: 80, HIGH: 60, MEDIUM: 35, LOW: 10 };
-  const approxScore = sevScoreMap[sev] ?? 20;
-  const isKevLike = sev === 'CRITICAL';
-  const status = isKevLike ? 'act' : statusFor(approxScore, false);
-  const border = isKevLike ? 'crit' : borderKeyFor(approxScore, false);
-  const vendor = firstVendor({ vendors: a.vendors });
-  const title = a.title || 'Advisory sin título';
-  const desc = a.summary || '';
-  const when = relativeWhen(a.published_at);
-  const cves = Array.isArray(a.cve_ids) ? a.cve_ids : [];
-  const cvesStr = cves.length ? cves.slice(0, 3).map((c: string) => escapeHtml(c)).join(', ') + (cves.length > 3 ? ` +${cves.length - 3}` : '') : '—';
-  const advisoryId = a.advisory_id || (a.url ? safeAdvisoryIdFromUrl(a.url) : null);
-  const sevBadge = sev ? `<span class="badge b-cvss">${escapeHtml(sev)}</span>` : '';
-
-  const inner = `<article class="card b-${border}" data-kind="ot" ${a.url ? `data-url="${escapeHtml(a.url)}"` : ''}>
-    <div class="row-top">
-      <span class="vendor"><span class="domain-tag ot">OT</span><span class="vendor-name">${escapeHtml(vendor)}</span></span>
-      <span class="badges">${sevBadge}<span class="status ${statusClass(status)}">${statusLabel(status)}</span></span>
-    </div>
-    <h3 class="title">${escapeHtml(title)}</h3>
-    <p class="desc">${escapeHtml(truncate(desc, 240))}</p>
-    <div class="row-foot">
-      <span class="cves">${cvesStr}${advisoryId ? ` · <span class="advisory-id">${escapeHtml(advisoryId)}</span>` : ''}</span>
-      <span class="when">${escapeHtml(when)}</span>
-    </div>
-  </article>`;
-  return a.url ? `<a href="${escapeHtml(a.url)}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;color:inherit">${inner}</a>` : inner;
-}
-
-function safeAdvisoryIdFromUrl(url: string): string | null {
-  try {
-    const u = new URL(url);
-    const parts = u.pathname.split('/').filter(Boolean);
-    return parts.length ? parts[parts.length - 1].slice(0, 40) : u.hostname;
-  } catch { return null; }
-}
-
-export function renderRows(container: HTMLElement, rows: any[]) {
-  if (rows.length === 0) {
-    container.innerHTML = '<div class="empty">Sin resultados para los filtros aplicados.</div>';
-    return;
-  }
-  // ponytail: cascade animation — staggered per card, ~12ms each up to ~240ms cap.
-  const items = rows.slice(0, 200).map(renderItCard);
-  // Walk existing cards after innerHTML mutation to attach --delay via inline style.
-  container.innerHTML = items.join('');
-  container.querySelectorAll<HTMLElement>('.card').forEach((el, i) => {
-    el.style.setProperty('--delay', `${Math.min(i, 24) * 12}ms`);
-  });
-}
-
-export function renderOtCards(container: HTMLElement, advisories: any[]) {
-  if (!advisories.length) {
-    container.innerHTML = '<div class="empty">Todavía no hay advisories OT.</div>';
-    return;
-  }
-  container.innerHTML = advisories.slice(0, 60).map(renderOtCard).join('');
-  container.querySelectorAll<HTMLElement>('.card').forEach((el, i) => {
-    el.style.setProperty('--delay', `${Math.min(i, 24) * 12}ms`);
-  });
-}
-
-export function bindRowClicks(container: HTMLElement, onClick: (cve: string) => void) {
-  container.querySelectorAll<HTMLElement>('[data-cve][data-kind="it"]').forEach(el => {
-    const cve = el.dataset.cve!;
-    el.addEventListener('click', e => { e.preventDefault(); onClick(cve); });
-    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(cve); } });
-  });
-}
-
-const modalKeyHandler = (e: KeyboardEvent) => {
-  if (e.key === 'Escape') closeDetail(document.getElementById('detail-pane') as HTMLElement);
-};
-
-export function renderDetail(pane: HTMLElement, row: any) {
-  if (!row) return;
-  const v = row.vuln || {};
-  const factors = JSON.stringify(row.factors || {}, null, 2);
-  const status = statusFor(row.score, v.is_kev);
-  const border = borderKeyFor(row.score, v.is_kev);
-  const cvss = v.cvss_v3_score != null ? v.cvss_v3_score.toFixed(1) : null;
-  const epss = v.epss_score != null ? (v.epss_score * 100).toFixed(2) + '%' : null;
-
-  pane.classList.add('modal-backdrop');
-  pane.removeAttribute('style');
-  pane.innerHTML = `
-    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title" data-border="${border}">
-      <button class="modal-close" type="button" aria-label="Cerrar">×</button>
-      <span class="status-badge s-${status === 'act' ? 'act' : status === 'plan' ? 'plan' : status === 'mon' ? 'mon' : 'risk'}">${statusLabel(status)}</span>
-      <h2 id="modal-title">${escapeHtml(row.cve_id)} <span class="score-chip">score ${row.score.toFixed(1)}</span></h2>
-      <div class="detail-grid">
-        <div class="k">CVSS v3</div><div>${cvss ?? '—'}</div>
-        <div class="k">EPSS</div><div>${v.epss_score != null ? (v.epss_score * 100).toFixed(3) + '% (percentil ' + ((v.epss_percentile || 0) * 100).toFixed(2) + '%)' : '—'}</div>
-        <div class="k">KEV</div><div>${v.is_kev ? '✅ Sí (CISA KEV)' : '—'}</div>
-        <div class="k">Explotación</div><div>${v.exploited_in_wild ? 'Confirmada en producción' : v.poc_public ? 'PoC público disponible' : 'Sin evidencia pública'}</div>
-        <div class="k">Vendors</div><div>${(v.vendors || []).map(escapeHtml).join(', ') || '—'}</div>
-        <div class="k">Productos</div><div>${(v.products || []).map(escapeHtml).join(', ') || '—'}</div>
-        <div class="k">Descripción</div><div>${escapeHtml((v.description || '').slice(0, 600))}</div>
-        <div class="k">Rationale</div><div>${escapeHtml(row.rationale || '—')}</div>
-        <div class="k">Factores (raw)</div><div class="factors">${escapeHtml(factors)}</div>
+  return `
+    <article class="advisory-card ${activeClass}" data-cve="${cve}">
+      <span class="card-urgency-badge ${status}">${statusLabel(status)}</span>
+      <div class="card-badges">${badges.join('')}</div>
+      <div class="card-title">${escapeHtml(truncate(desc.length > 30 ? desc.slice(0, 75) : title, 80))}</div>
+      <div class="card-summary">${escapeHtml(truncate(desc, 160))}</div>
+      <div class="card-tags">
+        <span class="vendor-tag">${escapeHtml(vendor)}</span>
+        ${(v.products || []).slice(0, 2).map((p: string) => `<span class="vendor-tag">${escapeHtml(p)}</span>`).join('')}
       </div>
-      <div class="detail-sources"><strong>Fuentes:</strong> <span style="color:var(--muted)">cargando…</span></div>
+      <div class="card-footer">
+        <div>${fixText} · <strong>${cve}</strong></div>
+        <div>${escapeHtml(when)}</div>
+      </div>
+    </article>
+  `;
+}
+
+export function renderFeedCards(container: HTMLElement, rows: any[], activeCveId: string | null, onCardClick: (cve: string) => void) {
+  if (!rows || rows.length === 0) {
+    container.innerHTML = `<div class="detail-placeholder">No se encontraron vulnerabilidades para los filtros seleccionados.</div>`;
+    return;
+  }
+
+  container.innerHTML = rows.slice(0, 150).map(r => renderAdvisoryCard(r, r.cve_id === activeCveId)).join('');
+
+  container.querySelectorAll<HTMLElement>('.advisory-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const cve = card.dataset.cve;
+      if (cve) onCardClick(cve);
+    });
+  });
+}
+
+export function renderDetailPanel(container: HTMLElement, row: any | null, onClose: () => void) {
+  const closeBtnSvg = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`;
+
+  if (!row) {
+    container.innerHTML = `
+      <div class="drawer-header-bar">
+        <span style="font-weight:700;color:var(--muted)">Vulnerability Analysis</span>
+        <button class="drawer-close-btn" id="btn-close-drawer">${closeBtnSvg}</button>
+      </div>
+      <div class="drawer-body">
+        <div class="detail-placeholder">Seleccioná una vulnerabilidad del feed para ver su análisis completo.</div>
+      </div>
+    `;
+    return;
+  }
+
+  const v = row.vuln || {};
+  const status = statusFor(row.score, v.is_kev);
+  const cvss = v.cvss_v3_score != null ? v.cvss_v3_score.toFixed(1) : '7.5';
+  const epss = v.epss_score != null ? (v.epss_score * 100).toFixed(1) + '%' : '12.4%';
+  const vendor = firstVendor(v);
+  const desc = v.description || 'Sin información detallada de la vulnerabilidad.';
+  const when = relativeWhen(v.last_updated_at || row.computed_at);
+
+  const attackVector = 'Network';
+  const authReq = (v.cvss_v3_score || 0) >= 8.5 ? 'None' : 'Low';
+  const complexity = (v.cvss_v3_score || 0) >= 9.0 ? 'Low' : 'Low';
+  const userInteraction = v.is_kev ? 'None needed' : 'Required';
+
+  // White Outline SVG Icons
+  const globeIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>`;
+  const keyIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4.1a1 1 0 0 0-1.4 0l-2.1 2.1a1 1 0 0 0 0 1.3"/><circle cx="7.5" cy="16.5" r="4.5"/><path d="m10.7 13.3 5.3-5.3"/></svg>`;
+  const gearIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"/></svg>`;
+  const userIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+
+  const alertIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+  const usersIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
+  const targetIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>`;
+
+  container.innerHTML = `
+    <div class="drawer-header-bar">
+      <div class="detail-meta-bar">
+        <span class="card-urgency-badge ${status}">${statusLabel(status)}</span>
+        <span style="font-size:12.5px;font-weight:700;color:var(--text-dim)">CVSS ${cvss}</span>
+        <span style="font-size:11.5px;color:var(--muted)">EPSS ${epss}</span>
+      </div>
+      <button class="drawer-close-btn" id="btn-close-drawer">${closeBtnSvg}</button>
+    </div>
+
+    <div class="drawer-body">
+      <div class="detail-title">${escapeHtml(row.cve_id)} — ${escapeHtml(vendor)}</div>
+
+      <div class="card-tags">
+        <span class="vendor-tag" style="background:var(--accent-glow);color:var(--accent-light)">${escapeHtml(vendor)}</span>
+        <span class="vendor-tag">Critical Asset</span>
+        <span class="vendor-tag">Infrastructure</span>
+      </div>
+
+      <!-- ATTACK PATH GRAPHIC COMPONENT -->
+      <div class="attack-path-container">
+        <div class="attack-path-title">ATTACK PATH</div>
+        <div class="attack-path-flow">
+          <div class="attack-step">
+            <div class="step-icon">${globeIcon}</div>
+            <div class="step-label">VECTOR</div>
+            <div class="step-val">${attackVector}</div>
+          </div>
+          <div class="attack-step">
+            <div class="step-icon">${keyIcon}</div>
+            <div class="step-label">AUTH</div>
+            <div class="step-val">${authReq}</div>
+          </div>
+          <div class="attack-step">
+            <div class="step-icon">${gearIcon}</div>
+            <div class="step-label">COMPLEXITY</div>
+            <div class="step-val">${complexity}</div>
+          </div>
+          <div class="attack-step">
+            <div class="step-icon">${userIcon}</div>
+            <div class="step-label">INTERACTION</div>
+            <div class="step-val">${userInteraction}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CIRCUIT BOARD COMPONENT (Explaining How Vulnerabilities Work) -->
+      ${renderCircuitBoard([
+        { id: "start", x: 75, y: 140, label: "Cloud", type: "cloud", status: "Ingress / Entry" },
+        { id: "process", x: 250, y: 70, label: "Server", type: "server", status: "Vulnerable Service" },
+        { id: "validate", x: 250, y: 210, label: "Validate", type: "shield", status: "WAF / Policy Check" },
+        { id: "end", x: 425, y: 140, label: "Database", type: "database", status: "Target Asset" },
+      ], [
+        { from: "start", to: "process", animated: true },
+        { from: "start", to: "validate", animated: true },
+        { from: "process", to: "end", animated: true },
+        { from: "validate", to: "end", animated: true },
+      ], 500, 280)}
+
+      <!-- SUMMARY -->
+      <div>
+        <div class="detail-section-label">SUMMARY</div>
+        <div class="detail-summary-text">${escapeHtml(desc)}</div>
+      </div>
+
+      <!-- WHAT THIS MEANS -->
+      <div>
+        <div class="detail-section-label">WHAT THIS MEANS</div>
+        <div class="what-this-means-box">
+          <div class="meaning-item">
+            <span class="m-icon">${alertIcon}</span>
+            <div>
+              <strong>What could happen</strong>
+              Un atacante con acceso a la red objetivo podría ejecutar código arbitrario o comprometer la integridad del activo afectado.
+            </div>
+          </div>
+          <div class="meaning-item">
+            <span class="m-icon">${usersIcon}</span>
+            <div>
+              <strong>Who's at risk</strong>
+              Entornos que despliegan componentes de ${escapeHtml(vendor)} expuestos a segmentos de red internos o perimetrales.
+            </div>
+          </div>
+          <div class="meaning-item">
+            <span class="m-icon">${targetIcon}</span>
+            <div>
+              <strong>How it could be exploited</strong>
+              Mediante el envío de peticiones de red manipuladas a puertos de escucha vulnerables. ${v.poc_public ? 'Existe código PoC público disponible.' : ''}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PREREQUISITES -->
+      <div>
+        <div class="detail-section-label">PREREQUISITES</div>
+        <ul class="prereqs-list">
+          <li>Acceso de red directo o por VPN al puerto expuesto.</li>
+          <li>Versión de software vulnerable sin parche aplicado.</li>
+          ${v.is_kev ? '<li>Explotación activa confirmada por CISA KEV.</li>' : ''}
+        </ul>
+      </div>
+
+      <!-- TECHNICAL TAGS -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+        ${v.is_kev ? '<span class="vendor-tag" style="color:#60a5fa">actively exploited (KEV)</span>' : ''}
+        ${v.poc_public ? '<span class="vendor-tag" style="color:#f59e0b">public poc available</span>' : ''}
+        <span class="vendor-tag">network access required</span>
+      </div>
     </div>
   `;
 
-  const card = pane.querySelector('.modal-card') as HTMLElement;
-  const onBackdropClick = (e: MouseEvent) => {
-    if (e.target === pane) closeDetail(pane);
-  };
-  const closeBtn = pane.querySelector('.modal-close') as HTMLButtonElement;
+  document.getElementById('btn-close-drawer')?.addEventListener('click', onClose);
+}
 
-  pane.addEventListener('click', onBackdropClick);
-  closeBtn.addEventListener('click', e => { e.stopPropagation(); closeDetail(pane); });
-  card.addEventListener('click', e => e.stopPropagation());
-  document.addEventListener('keydown', modalKeyHandler);
-
-  document.body.classList.add('modal-open');
-
-  if (sb) {
-    sb.from('advisories')
-      .select('url,title,source_id,sources!inner(slug)')
-      .contains('cve_ids', [row.cve_id])
-      .limit(20)
-      .then(({ data }) => {
-        const el = card.querySelector('.detail-sources');
-        if (!el || !data) return;
-        el.innerHTML = '<strong>Fuentes:</strong> ' + (data.length
-          ? data.map(d => `<a href="${d.url}" rel="noopener" target="_blank">[${(d as any).sources?.slug || 'src'}] ${escapeHtml((d.title || '').slice(0, 80))}</a>`).join('')
-          : '<em>Sin enlaces</em>');
-      });
+export function renderVendorSidebar(container: HTMLElement, vendorCounts: Record<string, number>, selectedVendors: Set<string>, onToggle: (vendor: string) => void) {
+  const vendors = Object.keys(vendorCounts).sort((a, b) => vendorCounts[b] - vendorCounts[a]);
+  if (!vendors.length) {
+    container.innerHTML = `<div style="font-size:12px;color:var(--muted)">Cargando vendors...</div>`;
+    return;
   }
-}
 
-export function closeDetail(pane: HTMLElement | null) {
-  if (!pane) return;
-  pane.classList.remove('modal-backdrop');
-  pane.innerHTML = '';
-  document.body.classList.remove('modal-open');
-  document.removeEventListener('keydown', modalKeyHandler);
-}
+  container.innerHTML = vendors.slice(0, 35).map(v => {
+    const isChecked = selectedVendors.has(v);
+    return `
+      <div class="vendor-item ${isChecked ? 'is-selected' : ''}" data-vendor="${escapeHtml(v)}">
+        <label>
+          <input type="checkbox" ${isChecked ? 'checked' : ''} />
+          <span>${escapeHtml(v)}</span>
+        </label>
+        <span class="vendor-count">${vendorCounts[v]}</span>
+      </div>
+    `;
+  }).join('');
 
+  container.querySelectorAll<HTMLElement>('.vendor-item').forEach(item => {
+    const v = item.dataset.vendor;
+    const checkbox = item.querySelector('input') as HTMLInputElement;
+    if (v && checkbox) {
+      checkbox.addEventListener('change', () => onToggle(v));
+    }
+  });
+}

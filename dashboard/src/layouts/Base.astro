@@ -1,9 +1,12 @@
 ---
+import { ClientRouter } from 'astro:transitions';
+import '../styles/global.css';
+
 interface Props {
   title?: string;
-  active?: 'top' | 'sources' | 'about';
+  active?: 'feed' | 'sources' | 'status' | 'about';
 }
-const { title = 'Sentinel-Bench', active = 'top' } = Astro.props;
+const { title = 'Sentinel-Bench — CTI Vulnerability Feed', active = 'feed' } = Astro.props;
 ---
 <!DOCTYPE html>
 <html lang="es">
@@ -11,29 +14,80 @@ const { title = 'Sentinel-Bench', active = 'top' } = Astro.props;
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{title}</title>
-  <meta name="description" content="Personal Cyber Threat Intelligence — top amenazas, KEV, EPSS, CVSS." />
+  <meta name="description" content="Personal Cyber Threat Intelligence — Threat feed priorizado por explotación real." />
+  <meta name="color-scheme" content="light dark" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" />
+  <script is:inline>
+    (function() {
+      const saved = localStorage.getItem('theme');
+      const theme = saved || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+  <ClientRouter />
 </head>
 <body>
   <div class="nav-wrap">
     <header class="nav">
-      <a href="/" class="brand"><img src="/favicon.svg" alt="" width="20" height="20" /> Sentinel-Bench</a>
+      <a href="/" class="brand">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <path d="m9 12 2 2 4-4"/>
+        </svg>
+        <span>Sentinel-Bench</span>
+      </a>
       <nav>
-        <a href="/" class:list={[{ 'is-active': active === 'top' }]}>Top</a>
+        <a href="/" class:list={[{ 'is-active': active === 'feed' }]}>Feed</a>
         <a href="/sources/" class:list={[{ 'is-active': active === 'sources' }]}>Fuentes</a>
+        <a href="/status/" class:list={[{ 'is-active': active === 'status' }]}>Status</a>
         <a href="/about/" class:list={[{ 'is-active': active === 'about' }]}>About</a>
       </nav>
+      <button id="theme-toggle" class="theme-toggle-btn" aria-label="Cambiar tema (Light / Dark)" title="Cambiar tema">
+        <!-- Sun icon for dark mode (click to switch to light) -->
+        <svg class="sun-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="4"></circle>
+          <path d="M12 2v2"></path>
+          <path d="M12 20v2"></path>
+          <path d="m4.93 4.93 1.41 1.41"></path>
+          <path d="m17.66 17.66 1.41 1.41"></path>
+          <path d="M2 12h2"></path>
+          <path d="M20 12h2"></path>
+          <path d="m6.34 17.66-1.41 1.41"></path>
+          <path d="m19.07 4.93-1.41 1.41"></path>
+        </svg>
+        <!-- Moon icon for light mode (click to switch to dark) -->
+        <svg class="moon-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
+        </svg>
+      </button>
     </header>
   </div>
-  <main>
-    <slot />
-  </main>
-  <footer>
-    <small>Datos públicos · NVD · CISA KEV · EPSS · GHSA · MSRC · <a href="https://github.com/iamtweaks/sentinel-bench" rel="noopener" target="_blank">repo</a></small>
+
+  <slot />
+
+  <footer style="border-top: 1px solid var(--border); padding: 24px; color: var(--muted); text-align: center; font-size: 12px; margin-top: 40px;">
+    <small>Sentinel-Bench · CTI Intelligence Abierta · CISA KEV · NVD · EPSS · GHSA · MSRC · <a href="https://github.com/iamtweaks/sentinel-bench" rel="noopener" target="_blank" style="color:var(--accent-light)">GitHub Repo</a></small>
   </footer>
+
+  <script>
+    function bindThemeToggle() {
+      const btn = document.getElementById('theme-toggle');
+      if (!btn || (btn as any).__themeBound) return;
+      (btn as any).__themeBound = true;
+
+      btn.addEventListener('click', () => {
+        const current = document.documentElement.getAttribute('data-theme') || 'dark';
+        const next = current === 'light' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem('theme', next);
+      });
+    }
+
+    bindThemeToggle();
+    document.addEventListener('astro:page-load', bindThemeToggle);
+  </script>
 </body>
 </html>

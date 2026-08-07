@@ -22,7 +22,7 @@ from ingest.lib import (
     compute_score, score_breakdown,
 )
 
-PROJECT_REF = open("/root/projects/sentinel-bench/.supabase-creds").readline().split("=",1)[1].strip()
+from ingest.ingest import PROJECT_REF
 
 
 def fetch_all_vulns() -> list[dict]:

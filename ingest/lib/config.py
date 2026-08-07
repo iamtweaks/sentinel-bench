@@ -7,19 +7,30 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def get_env(name: str, default: str = "") -> str:
-    """Read from process env first, then from /root/.hermes/.env."""
+    """Read from process env first, then from local .env files safely."""
     val = os.environ.get(name)
     if val:
         return val
-    if not ENV_PATH.exists():
-        return default
-    for line in ENV_PATH.read_text(errors="ignore").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
+    
+    candidate_paths = [
+        Path("/root/.hermes/.env"),
+        Path.home() / ".hermes" / ".env",
+        PROJECT_ROOT / ".env",
+        PROJECT_ROOT / "dashboard" / ".env",
+    ]
+    for env_file in candidate_paths:
+        try:
+            if not env_file.exists():
+                continue
+            for line in env_file.read_text(errors="ignore").splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                if k.strip() == name:
+                    return v.strip().strip("\"'")
+        except Exception:
             continue
-        k, v = line.split("=", 1)
-        if k.strip() == name:
-            return v.strip().strip("\"'")
     return default
 
 

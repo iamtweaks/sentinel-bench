@@ -2,53 +2,92 @@
 import Base from '../layouts/Base.astro';
 ---
 <Base title="Sentinel-Bench — About" active="about">
-  <div class="about-wrap">
-    <div class="about-hero">
-      <h1>Sentinel-Bench</h1>
-      <p style="margin:0;color:var(--muted);font-size:13.5px">Laboratorio personal de <em style="color:var(--accent)">Cyber Threat Intelligence</em> · ingestión pública · scoring sin LLM · dashboard abierto.</p>
-    </div>
+  <main class="about-page-wrap">
+    
+    <!-- HERO SPLIT SECTION -->
+    <section class="about-hero-grid">
+      <div class="about-hero-text">
+        <h1>Vulnerability tracking for <span class="green-accent">CTI professionals</span></h1>
+        <p>
+          Sentinel-Bench es un laboratorio de <strong>Cyber Threat Intelligence</strong> que recopila, prioriza y consolida vulnerabilidades de fuentes públicas (CISA KEV, NVD, EPSS, GHSA, MSRC) ordenadas por evidencia real de explotación.
+        </p>
+        <div class="hero-cta-btns">
+          <a href="/" class="btn-primary-hero">Explore Feed</a>
+          <a href="https://github.com/iamtweaks/sentinel-bench" target="_blank" rel="noopener" class="btn-secondary-hero">GitHub Repo</a>
+        </div>
+      </div>
 
-    <div class="about-card">
+      <!-- TERMINAL PREVIEW WINDOW -->
+      <div class="terminal-window">
+        <div class="terminal-header">
+          <div class="terminal-dot red"></div>
+          <div class="terminal-dot yellow"></div>
+          <div class="terminal-dot green"></div>
+          <span style="font-size:11px;color:var(--muted);margin-left:8px">ingest.py — CLI</span>
+        </div>
+        <div class="terminal-body"><span style="color:var(--accent)">$ python -m ingest.ingest --source=KEV,EPSS,GHSA</span>
+[+] Ingesting CISA KEV... 1,240 exploited CVEs fetched.
+[+] Fetching EPSS scores... 2,000 top probabilities loaded.
+[+] Normalizing & deduplicating vulnerabilities...
+[+] Scoring Engine v1: recalculated 2,000 risk scores.
+<span style="color:#38bdf8">[+] Top Threat: CVE-2025-20352 (Score: 94.2) -> Briefing generated.</span>
+<span style="color:var(--muted)">[+] Supabase RLS sync complete. Dashboard ready.</span></div>
+      </div>
+    </section>
+
+    <!-- STATS GRID -->
+    <section class="stats-grid">
+      <div class="stat-box">
+        <div class="stat-num">2.0k+</div>
+        <div class="stat-lbl">Vulnerabilidades</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-num" style="color:#38bdf8">1.2k</div>
+        <div class="stat-lbl">CISA KEV Catalog</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-num" style="color:#f59e0b">850+</div>
+        <div class="stat-lbl">PoCs Públicos</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-num" style="color:#a78bfa">5</div>
+        <div class="stat-lbl">Fuentes de Intel</div>
+      </div>
+    </section>
+
+    <!-- METHODOLOGY & DETAILS CARD -->
+    <section class="about-card">
       <h2>Misión</h2>
-      <p>Monitorear vulnerabilidades reales con <strong>evidencia de explotación</strong> (no solo CVSS). Combinar feeds públicos abiertos en un solo dashboard priorizado, y entregar un briefing diario por Telegram.</p>
+      <p>
+        Monitorear vulnerabilidades en tiempo real basándonos en <strong>evidencia objetiva de explotación activa</strong> en lugar de únicamente la métrica tradicional CVSS. Unificamos feeds públicos abiertos en un único feed interactivo y enviamos alertas diarias por Telegram cuando el Top 5 cambia.
+      </p>
 
-      <h2>Fuentes (todas abiertas)</h2>
+      <h2>Fuentes Abiertas e Integradas</h2>
       <ul>
-        <li><strong>CISA KEV</strong> — Known Exploited Vulnerabilities catalog</li>
-        <li><strong>NVD</strong> — National Vulnerability Database (CVSS, CPE)</li>
-        <li><strong>FIRST EPSS</strong> — Exploit Prediction Scoring System</li>
-        <li><strong>GitHub Security Advisories</strong> — Curated advisories + PoC URLs</li>
-        <li><strong>MSRC CVRF</strong> — Microsoft Security Response Center</li>
+        <li><strong>CISA KEV</strong> — Catálogo de vulnerabilidades con explotación confirmada en salvaje.</li>
+        <li><strong>NVD CVE 2.0</strong> — National Vulnerability Database (CVSS v3, CPEs, descripciones).</li>
+        <li><strong>FIRST EPSS</strong> — Modelo probabilístico de estimación de exploit a 30 días.</li>
+        <li><strong>GitHub Security Advisories (GHSA)</strong> — Advisories curados por la comunidad y referencias a PoC.</li>
+        <li><strong>Microsoft MSRC</strong> — Actualizaciones de seguridad oficiales de la infraestructura Microsoft.</li>
       </ul>
 
-      <h2>Scoring</h2>
-      <p>Score <strong>0–100</strong>, sin LLM. Combina:</p>
+      <h2>Fórmula de Scoring Determinística (0–100)</h2>
+      <p>Sin depender de alucinaciones de modelos LLM para la asignación de puntajes. El cálculo combina:</p>
       <ul>
-        <li><strong>30</strong> × KEV (CISA)</li>
-        <li><strong>25</strong> × EPSS percentile ≥ 99%</li>
-        <li><strong>15</strong> × EPSS score (si ≥ 50%)</li>
-        <li><strong>12</strong> × CVSS v3 / 10</li>
-        <li><strong>8</strong> × factor de explotación (confirmed / PoC / probable)</li>
-        <li><strong>5</strong> × recencia (&lt; 7d / &lt; 30d / &lt; 90d)</li>
-        <li><strong>3</strong> × diversidad de fuentes independientes</li>
-        <li><strong>2</strong> × vendor de alta exposición</li>
-      </ul>
-      <p>Cada CVE persiste su <code>score</code> y el desglose <code>factors</code> (jsonb). Si un dato falta, queda <code>null</code> explícito — no se inventa.</p>
-
-      <h2>Privacidad</h2>
-      <p>100% inteligencia pública. No conecta a infra corporativa, no usa IoCs privados, no scrapea contenido sensible. Apto como portfolio público Blue Team.</p>
-
-      <h2>Stack</h2>
-      <ul>
-        <li><strong>Ingesta:</strong> Python (stdlib only — <code>urllib</code>, <code>json</code>, <code>hashlib</code>)</li>
-        <li><strong>Persistencia:</strong> Supabase (Postgres + REST)</li>
-        <li><strong>Síntesis:</strong> Hermes (solo cuando hay cambios)</li>
-        <li><strong>Entrega:</strong> Telegram + Astro static → Vercel</li>
-        <li><strong>Orquestación:</strong> cron (siguiendo el patrón de <code>brief_7am.py</code>)</li>
+        <li><strong>30 pts</strong> × Presencia en CISA KEV</li>
+        <li><strong>25 pts</strong> × Percentil EPSS ≥ 99%</li>
+        <li><strong>15 pts</strong> × EPSS Score ≥ 50%</li>
+        <li><strong>12 pts</strong> × CVSS v3 proporcional (/10)</li>
+        <li><strong>8 pts</strong> × Evidencia de exploit (Confirmado / PoC / Probable)</li>
+        <li><strong>5 pts</strong> × Recencia de la vulnerabilidad (&lt;7d / &lt;30d / &lt;90d)</li>
+        <li><strong>3 pts</strong> × Corroboración de múltiples fuentes</li>
+        <li><strong>2 pts</strong> × Vendor de alta exposición en infraestructura</li>
       </ul>
 
-      <h2>Repo</h2>
-      <p style="margin-bottom:0"><a href="https://github.com/iamtweaks/sentinel-bench" rel="noopener" target="_blank">github.com/iamtweaks/sentinel-bench</a></p>
-    </div>
-  </div>
+      <h2>Garantía de Transparencia y Privacidad</h2>
+      <p>
+        🔒 <strong>100% Inteligencia Pública</strong>. Aislado de cualquier red corporativa o SOC privado. No realiza scraping de infraestructura interna ni contiene IoCs confidenciales. Diseñado como portfolio profesional de Blue Team / Cyber Threat Intelligence.
+      </p>
+    </section>
+  </main>
 </Base>

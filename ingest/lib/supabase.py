@@ -13,7 +13,11 @@ def sb_url(project_ref: str, path: str) -> str:
 
 
 def sb_headers(use_service_role: bool = True) -> dict[str, str]:
-    key = get_env("SUPABASE_SERVICE_ROLE_KEY") if use_service_role else get_env("SUPABASE_ANON_KEY")
+    key = ""
+    if use_service_role:
+        key = get_env("SUPABASE_SERVICE_ROLE_KEY")
+    if not key:
+        key = get_env("SUPABASE_ANON_KEY") or get_env("PUBLIC_SUPABASE_ANON_KEY")
     return {
         "apikey": key,
         "Authorization": f"Bearer {key}",
