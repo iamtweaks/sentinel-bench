@@ -104,7 +104,56 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* === Floating Navbar === */
+/* === High-Tech Cybersecurity World Map Background === */
+.cyber-bg-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cyber-world-map {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.85;
+}
+
+/* === Cascading Top-Down Entry Animations === */
+@keyframes drop-cascade {
+  0% {
+    opacity: 0;
+    transform: translateY(-18px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.nav-wrap { animation: drop-cascade 340ms cubic-bezier(0.16, 1, 0.3, 1) 0ms both; }
+.vendor-sidebar { animation: drop-cascade 380ms cubic-bezier(0.16, 1, 0.3, 1) 50ms both; }
+.feed-header { animation: drop-cascade 380ms cubic-bezier(0.16, 1, 0.3, 1) 90ms both; }
+.filter-sections-wrap { animation: drop-cascade 380ms cubic-bezier(0.16, 1, 0.3, 1) 130ms both; }
+.feed-actions { animation: drop-cascade 380ms cubic-bezier(0.16, 1, 0.3, 1) 170ms both; }
+.active-tags-bar { animation: drop-cascade 380ms cubic-bezier(0.16, 1, 0.3, 1) 200ms both; }
+
+/* View Transitions Optimization */
+::view-transition-old(root) {
+  animation: 160ms cubic-bezier(0.4, 0, 1, 1) both fade-out;
+}
+::view-transition-new(root) {
+  animation: 280ms cubic-bezier(0, 0, 0.2, 1) both drop-cascade;
+}
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Floating Navbar */
 .nav-wrap {
   position: sticky;
   top: 16px;
@@ -125,11 +174,6 @@ header.nav {
   border: 1px solid var(--border);
   border-radius: 999px;
   box-shadow: var(--shadow);
-  animation: nav-drop 480ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-@keyframes nav-drop {
-  from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 
 .brand {
@@ -486,7 +530,9 @@ main.feed-layout {
   flex-direction: column;
   gap: 10px;
   cursor: pointer;
-  transition: all 0.18s ease;
+  animation: drop-cascade 340ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--delay, 0ms);
+  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
 }
 .advisory-card:hover {
   border-color: var(--accent-border);

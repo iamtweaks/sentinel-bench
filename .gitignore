@@ -13,3 +13,6 @@ __pycache__/
 .supabase-creds
 dashboard/.env
 .vercel
+.atl/
+.agents/
+.vscode/

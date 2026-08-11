@@ -130,10 +130,13 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
       };
 
       async function loadData() {
-        const [scoresRes, otRes] = await Promise.all([
-          sb.from('risk_scores').select('cve_id, score, factors, rationale, computed_at').order('computed_at', { ascending: false }).limit(2000),
-          sb.from('advisories').select('id, title, summary, url, severity, published_at, vendors, cve_ids, domain').eq('domain', 'OT').order('published_at', { ascending: false, nullsFirst: false }).limit(200)
-        ]);
+        // Query latest_risk_scores view first (Postgres-optimized), fallback to risk_scores table
+        let scoresRes = await sb.from('latest_risk_scores').select('cve_id, score, factors, rationale, computed_at').order('score', { ascending: false }).limit(500);
+        if (scoresRes.error) {
+          scoresRes = await sb.from('risk_scores').select('cve_id, score, factors, rationale, computed_at').order('computed_at', { ascending: false }).limit(2000);
+        }
+
+        const otRes = await sb.from('advisories').select('id, title, summary, url, severity, published_at, vendors, cve_ids, domain').eq('domain', 'OT').order('published_at', { ascending: false, nullsFirst: false }).limit(200);
 
         if (scoresRes.error && otRes.error) {
           document.getElementById('feed-cards-container').innerHTML = `<div class="detail-placeholder" style="color:var(--crit)">Error al cargar datos de Supabase.</div>`;

@@ -49,7 +49,7 @@ function relativeWhen(iso: string | null | undefined): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export function renderAdvisoryCard(r: any, isActive: boolean = false): string {
+export function renderAdvisoryCard(r: any, isActive: boolean = false, index: number = 0): string {
   const v = r.vuln || {};
   const status = statusFor(r.score, v.is_kev);
   const vendor = firstVendor(v);
@@ -65,9 +65,10 @@ export function renderAdvisoryCard(r: any, isActive: boolean = false): string {
 
   const fixText = v.is_kev ? '<span class="no-fix">No fix available</span>' : '<span class="fix-available">Fix available</span>';
   const activeClass = isActive ? 'is-active' : '';
+  const delayMs = Math.min(index * 25, 400);
 
   return `
-    <article class="advisory-card ${activeClass}" data-cve="${cve}">
+    <article class="advisory-card ${activeClass}" data-cve="${cve}" style="--delay: ${delayMs}ms">
       <span class="card-urgency-badge ${status}">${statusLabel(status)}</span>
       <div class="card-badges">${badges.join('')}</div>
       <div class="card-title">${escapeHtml(truncate(desc.length > 30 ? desc.slice(0, 75) : title, 80))}</div>
@@ -90,7 +91,7 @@ export function renderFeedCards(container: HTMLElement, rows: any[], activeCveId
     return;
   }
 
-  container.innerHTML = rows.slice(0, 150).map(r => renderAdvisoryCard(r, r.cve_id === activeCveId)).join('');
+  container.innerHTML = rows.slice(0, 150).map((r, i) => renderAdvisoryCard(r, r.cve_id === activeCveId, i)).join('');
 
   container.querySelectorAll<HTMLElement>('.advisory-card').forEach(card => {
     card.addEventListener('click', () => {
