@@ -4,9 +4,10 @@ import '../styles/global.css';
 
 interface Props {
   title?: string;
-  active?: 'feed' | 'sources' | 'status' | 'about';
+  active?: 'feed' | 'sources' | 'status' | 'about' | 'landing' | 'dashboard';
+  hideNavLinks?: boolean;
 }
-const { title = 'Sentinel-Bench — CTI Vulnerability Feed', active = 'feed' } = Astro.props;
+const { title = 'Sentinel-Bench — CTI Vulnerability Feed', active = 'feed', hideNavLinks = false } = Astro.props;
 ---
 <!DOCTYPE html>
 <html lang="es">
@@ -76,7 +77,7 @@ const { title = 'Sentinel-Bench — CTI Vulnerability Feed', active = 'feed' } =
 
   <div class="nav-wrap">
     <header class="nav">
-      <a href="/" class="brand">
+      <a href="/dashboard/" class="brand">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
           <path d="m9 12 2 2 4-4"/>
@@ -84,10 +85,17 @@ const { title = 'Sentinel-Bench — CTI Vulnerability Feed', active = 'feed' } =
         <span>Sentinel-Bench</span>
       </a>
       <nav>
-        <a href="/" class:list={[{ 'is-active': active === 'feed' }]}>Feed</a>
-        <a href="/sources/" class:list={[{ 'is-active': active === 'sources' }]}>Fuentes</a>
-        <a href="/status/" class:list={[{ 'is-active': active === 'status' }]}>Status</a>
-        <a href="/about/" class:list={[{ 'is-active': active === 'about' }]}>About</a>
+        {!hideNavLinks && (
+          <>
+            <a href="/dashboard/" class:list={[{ 'is-active': active === 'feed' || active === 'dashboard' }]}>Feed</a>
+            <a href="/sources/" class:list={[{ 'is-active': active === 'sources' }]}>Fuentes</a>
+            <a href="/status/" class:list={[{ 'is-active': active === 'status' }]}>Status</a>
+            <a href="/about/" class:list={[{ 'is-active': active === 'about' }]}>About</a>
+          </>
+        )}
+        {active === 'landing' && (
+          <a href="/dashboard/" class="nav-cta">Abrir Dashboard →</a>
+        )}
       </nav>
       <button id="theme-toggle" class="theme-toggle-btn" aria-label="Cambiar tema (Light / Dark)" title="Cambiar tema">
         <svg class="sun-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
