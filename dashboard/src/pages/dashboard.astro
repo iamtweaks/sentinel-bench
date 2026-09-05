@@ -22,7 +22,7 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
         </div>
       </div>
       <div id="vendor-list-container" class="vendor-list">
-        <div style="font-size:12.5px;color:var(--muted);padding:8px">Cargando vendors...</div>
+        <div style="font-size:12.5px;color:var(--muted);padding:8px">Loading vendors...</div>
       </div>
     </aside>
 
@@ -31,7 +31,7 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
       <div class="feed-header">
         <div class="feed-title">Threat Vulnerability Feed</div>
         <div class="feed-subtitle">
-          Actualizado <span id="feed-updated-time">hace instantes</span> · <span id="feed-count">0</span> vulnerabilidades
+          Updated <span id="feed-updated-time">just now</span> · <span id="feed-count">0</span> vulnerabilities
         </div>
       </div>
 
@@ -75,9 +75,9 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
           <input id="feed-search-input" type="text" placeholder="Search advisories, CVEs, vendors..." />
         </div>
         <select id="feed-sort-select" class="select-sort">
-          <option value="score">Score más alto</option>
-          <option value="newest">Más recientes</option>
-          <option value="epss">EPSS más alto</option>
+          <option value="score">Highest score</option>
+          <option value="newest">Most recent</option>
+          <option value="epss">Highest EPSS</option>
         </select>
         <button id="btn-export-csv" class="btn-export">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -92,7 +92,7 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
 
       <!-- ADVISORY CARDS LIST -->
       <div id="feed-cards-container" class="feed-cards">
-        <div class="detail-placeholder">Cargando inteligencia de amenazas…</div>
+        <div class="detail-placeholder">Loading threat intelligence…</div>
       </div>
     </section>
 
@@ -111,7 +111,7 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
 
     if (!sb) {
       document.getElementById('feed-cards-container').innerHTML =
-        '<div class="detail-placeholder" style="color:var(--crit)">Faltan PUBLIC_SUPABASE_URL / PUBLIC_SUPABASE_ANON_KEY. Configurá las env vars en Vercel.</div>';
+        '<div class="detail-placeholder" style="color:var(--crit)">Missing PUBLIC_SUPABASE_URL / PUBLIC_SUPABASE_ANON_KEY. Configure the env vars in Vercel.</div>';
     } else {
       const state = {
         rows: [],
@@ -139,7 +139,7 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
         const otRes = await sb.from('advisories').select('id, title, summary, url, severity, published_at, vendors, cve_ids, domain').eq('domain', 'OT').order('published_at', { ascending: false, nullsFirst: false }).limit(200);
 
         if (scoresRes.error && otRes.error) {
-          document.getElementById('feed-cards-container').innerHTML = `<div class="detail-placeholder" style="color:var(--crit)">Error al cargar datos de Supabase.</div>`;
+          document.getElementById('feed-cards-container').innerHTML = `<div class="detail-placeholder" style="color:var(--crit)">Error loading data from Supabase.</div>`;
           return;
         }
 

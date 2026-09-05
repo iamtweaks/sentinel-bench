@@ -37,9 +37,9 @@ function firstVendor(v: any): string {
 }
 
 function relativeWhen(iso: string | null | undefined): string {
-  if (!iso) return 'Reciente';
+  if (!iso) return 'Recent';
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return 'Reciente';
+  if (isNaN(d.getTime())) return 'Recent';
   const diffSec = Math.floor((Date.now() - d.getTime()) / 1000);
   if (diffSec < 3600) return 'Just now';
   const hours = Math.floor(diffSec / 3600);
@@ -54,7 +54,7 @@ export function renderAdvisoryCard(r: any, isActive: boolean = false, index: num
   const status = statusFor(r.score, v.is_kev);
   const vendor = firstVendor(v);
   const title = v.cve_id ? `${vendor} Advisory (${v.cve_id})` : (r.cve_id || 'Security Advisory');
-  const desc = v.description || r.rationale || 'Sin descripción disponible.';
+  const desc = v.description || r.rationale || 'No description available.';
   const cve = escapeHtml(r.cve_id);
   const when = relativeWhen(v.last_updated_at || r.computed_at);
   
@@ -87,7 +87,7 @@ export function renderAdvisoryCard(r: any, isActive: boolean = false, index: num
 
 export function renderFeedCards(container: HTMLElement, rows: any[], activeCveId: string | null, onCardClick: (cve: string) => void) {
   if (!rows || rows.length === 0) {
-    container.innerHTML = `<div class="detail-placeholder">No se encontraron vulnerabilidades para los filtros seleccionados.</div>`;
+    container.innerHTML = `<div class="detail-placeholder">No vulnerabilities found for the selected filters.</div>`;
     return;
   }
 
@@ -111,7 +111,7 @@ export function renderDetailPanel(container: HTMLElement, row: any | null, onClo
         <button class="drawer-close-btn" id="btn-close-drawer">${closeBtnSvg}</button>
       </div>
       <div class="drawer-body">
-        <div class="detail-placeholder">Seleccioná una vulnerabilidad del feed para ver su análisis completo.</div>
+        <div class="detail-placeholder">Select a vulnerability from the feed to view its full analysis.</div>
       </div>
     `;
     return;
@@ -122,7 +122,7 @@ export function renderDetailPanel(container: HTMLElement, row: any | null, onClo
   const cvss = v.cvss_v3_score != null ? v.cvss_v3_score.toFixed(1) : '7.5';
   const epss = v.epss_score != null ? (v.epss_score * 100).toFixed(1) + '%' : '12.4%';
   const vendor = firstVendor(v);
-  const desc = v.description || 'Sin información detallada de la vulnerabilidad.';
+  const desc = v.description || 'No detailed vulnerability information available.';
   const when = relativeWhen(v.last_updated_at || row.computed_at);
 
   const attackVector = 'Network';
@@ -213,7 +213,7 @@ export function renderDetailPanel(container: HTMLElement, row: any | null, onClo
             <span class="m-icon">${alertIcon}</span>
             <div>
               <strong>What could happen</strong>
-              Un atacante con acceso a la red objetivo podría ejecutar código arbitrario o comprometer la integridad del activo afectado.
+              An attacker with access to the target network could execute arbitrary code or compromise the integrity of the affected asset.
             </div>
           </div>
           <div class="meaning-item">
@@ -227,7 +227,7 @@ export function renderDetailPanel(container: HTMLElement, row: any | null, onClo
             <span class="m-icon">${targetIcon}</span>
             <div>
               <strong>How it could be exploited</strong>
-              Mediante el envío de peticiones de red manipuladas a puertos de escucha vulnerables. ${v.poc_public ? 'Existe código PoC público disponible.' : ''}
+              By sending crafted network requests to vulnerable listening ports. ${v.poc_public ? 'Public PoC code is available.' : ''}
             </div>
           </div>
         </div>
@@ -238,8 +238,8 @@ export function renderDetailPanel(container: HTMLElement, row: any | null, onClo
         <div class="detail-section-label">PREREQUISITES</div>
         <ul class="prereqs-list">
           <li>Acceso de red directo o por VPN al puerto expuesto.</li>
-          <li>Versión de software vulnerable sin parche aplicado.</li>
-          ${v.is_kev ? '<li>Explotación activa confirmada por CISA KEV.</li>' : ''}
+          <li>Vulnerable software version without the patch applied.</li>
+          ${v.is_kev ? '<li>Active exploitation confirmed by CISA KEV.</li>' : ''}
         </ul>
       </div>
 
@@ -258,7 +258,7 @@ export function renderDetailPanel(container: HTMLElement, row: any | null, onClo
 export function renderVendorSidebar(container: HTMLElement, vendorCounts: Record<string, number>, selectedVendors: Set<string>, onToggle: (vendor: string) => void) {
   const vendors = Object.keys(vendorCounts).sort((a, b) => vendorCounts[b] - vendorCounts[a]);
   if (!vendors.length) {
-    container.innerHTML = `<div style="font-size:12px;color:var(--muted)">Cargando vendors...</div>`;
+    container.innerHTML = `<div style="font-size:12px;color:var(--muted)">Loading vendors...</div>`;
     return;
   }
 

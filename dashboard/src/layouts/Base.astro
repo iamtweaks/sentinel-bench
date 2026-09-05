@@ -15,7 +15,7 @@ const { title = 'Sentinel-Bench — CTI Vulnerability Feed', active = 'feed', hi
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{title}</title>
-  <meta name="description" content="Personal Cyber Threat Intelligence — Threat feed priorizado por explotación real." />
+  <meta name="description" content="Personal Cyber Threat Intelligence — Threat feed prioritized by real-world exploitation." />
   <meta name="color-scheme" content="light dark" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -88,16 +88,16 @@ const { title = 'Sentinel-Bench — CTI Vulnerability Feed', active = 'feed', hi
         {!hideNavLinks && (
           <>
             <a href="/dashboard/" class:list={[{ 'is-active': active === 'feed' || active === 'dashboard' }]}>Feed</a>
-            <a href="/sources/" class:list={[{ 'is-active': active === 'sources' }]}>Fuentes</a>
+            <a href="/sources/" class:list={[{ 'is-active': active === 'sources' }]}>Sources</a>
             <a href="/status/" class:list={[{ 'is-active': active === 'status' }]}>Status</a>
             <a href="/about/" class:list={[{ 'is-active': active === 'about' }]}>About</a>
           </>
         )}
         {active === 'landing' && (
-          <a href="/dashboard/" class="nav-cta">Abrir Dashboard →</a>
+          <a href="/dashboard/" class="nav-cta">Open Dashboard →</a>
         )}
       </nav>
-      <button id="theme-toggle" class="theme-toggle-btn" aria-label="Cambiar tema (Light / Dark)" title="Cambiar tema">
+      <button id="theme-toggle" class="theme-toggle-btn" aria-label="Toggle theme (Light / Dark)" title="Toggle theme">
         <svg class="sun-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="4"></circle>
           <path d="M12 2v2"></path>

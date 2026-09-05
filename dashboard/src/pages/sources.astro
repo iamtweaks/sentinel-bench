@@ -5,15 +5,15 @@ const SUPABASE_ANON = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || '';
 const SUPABASE_URL_JSON = JSON.stringify(SUPABASE_URL);
 const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
 ---
-<Base title="Sentinel-Bench — Fuentes de Intel" active="sources">
+<Base title="Sentinel-Bench — Intel Sources" active="sources">
   <main class="sources-page-wrap">
     <div class="sources-header">
-      <h1>Fuentes de Inteligencia</h1>
-      <p style="color:var(--muted);margin:0;font-size:14px">Catálogo de feeds públicos de vulnerabilidades consumidos por Sentinel-Bench. 100% fuentes públicas y verificadas.</p>
+      <h1>Intel Sources</h1>
+      <p style="color:var(--muted);margin:0;font-size:14px">Catalog of public vulnerability feeds consumed by Sentinel-Bench. 100% public, verified sources.</p>
     </div>
 
     <div id="src-grid" class="sources-grid">
-      <div style="color:var(--muted);grid-column:1/-1">Cargando catálogo de fuentes…</div>
+      <div style="color:var(--muted);grid-column:1/-1">Loading source catalog…</div>
     </div>
   </main>
 
@@ -27,7 +27,7 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
 
     function healthFor(published: string | null, enabled: boolean): { cls: string; label: string } {
       if (!enabled) return { cls: 'down', label: 'Disabled' };
-      if (!published) return { cls: 'stale', label: 'Sin datos' };
+      if (!published) return { cls: 'stale', label: 'No data' };
       const ageMs = Date.now() - new Date(published).getTime();
       const days = ageMs / (1000 * 60 * 60 * 24);
       if (days > 14) return { cls: 'down', label: 'Stale' };
@@ -67,7 +67,7 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
         }
 
         if (!sources.length) {
-          grid.innerHTML = '<div style="color:var(--muted)">No se encontraron fuentes de inteligencia configuradas.</div>';
+          grid.innerHTML = '<div style="color:var(--muted)">No intelligence sources configured.</div>';
           return;
         }
 
@@ -80,7 +80,7 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
             <article class="source-card">
               <div class="slug">${esc(s.slug)}</div>
               <div class="name">${esc(s.name)}</div>
-              <div class="meta">${esc(s.kind || 'Public Feed')} · Visto por última vez: ${fmtWhen(lastPublished)}</div>
+              <div class="meta">${esc(s.kind || 'Public Feed')} · Last seen: ${fmtWhen(lastPublished)}</div>
               <div class="meta-row">
                 <span class="health ${h.cls}">${h.label}</span>
                 <span class="count">${count.toLocaleString()} advisories</span>
@@ -91,7 +91,7 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
         }).join('');
       }).catch(err => {
         const grid = document.getElementById('src-grid');
-        if (grid) grid.innerHTML = `<div style="color:var(--act-now)">Error al cargar fuentes: ${esc(err.message || String(err))}</div>`;
+        if (grid) grid.innerHTML = `<div style="color:var(--act-now)">Error loading sources: ${esc(err.message || String(err))}</div>`;
       });
     }
   </script>

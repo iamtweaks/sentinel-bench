@@ -9,7 +9,7 @@ import Base from '../layouts/Base.astro';
       <div class="about-hero-text">
         <h1>Vulnerability tracking for <span class="green-accent">CTI professionals</span></h1>
         <p>
-          Sentinel-Bench es un laboratorio de <strong>Cyber Threat Intelligence</strong> que recopila, prioriza y consolida vulnerabilidades de fuentes públicas (CISA KEV, NVD, EPSS, GHSA, MSRC) ordenadas por evidencia real de explotación.
+          Sentinel-Bench is a <strong>Cyber Threat Intelligence</strong> lab that aggregates, prioritizes, and consolidates vulnerabilities from public sources (CISA KEV, NVD, EPSS, GHSA, MSRC), ranked by real-world exploitation evidence.
         </p>
         <div class="hero-cta-btns">
           <a href="/dashboard/" class="btn-primary-hero">Explore Feed</a>
@@ -39,7 +39,7 @@ import Base from '../layouts/Base.astro';
     <section class="stats-grid">
       <div class="stat-box">
         <div class="stat-num">2.0k+</div>
-        <div class="stat-lbl">Vulnerabilidades</div>
+        <div class="stat-lbl">Vulnerabilities</div>
       </div>
       <div class="stat-box">
         <div class="stat-num" style="color:#38bdf8">1.2k</div>
@@ -47,46 +47,46 @@ import Base from '../layouts/Base.astro';
       </div>
       <div class="stat-box">
         <div class="stat-num" style="color:#f59e0b">850+</div>
-        <div class="stat-lbl">PoCs Públicos</div>
+        <div class="stat-lbl">Public PoCs</div>
       </div>
       <div class="stat-box">
         <div class="stat-num" style="color:#a78bfa">5</div>
-        <div class="stat-lbl">Fuentes de Intel</div>
+        <div class="stat-lbl">Intel Sources</div>
       </div>
     </section>
 
     <!-- METHODOLOGY & DETAILS CARD -->
     <section class="about-card">
-      <h2>Misión</h2>
+      <h2>Mission</h2>
       <p>
-        Monitorear vulnerabilidades en tiempo real basándonos en <strong>evidencia objetiva de explotación activa</strong> en lugar de únicamente la métrica tradicional CVSS. Unificamos feeds públicos abiertos en un único feed interactivo y enviamos alertas diarias por Telegram cuando el Top 5 cambia.
+        Monitor vulnerabilities in real time based on <strong>objective evidence of active exploitation</strong>, instead of relying solely on the traditional CVSS metric. We unify open public feeds into a single interactive feed and send daily alerts via Telegram when the Top 5 changes.
       </p>
 
-      <h2>Fuentes Abiertas e Integradas</h2>
+      <h2>Integrated Open Sources</h2>
       <ul>
-        <li><strong>CISA KEV</strong> — Catálogo de vulnerabilidades con explotación confirmada en salvaje.</li>
-        <li><strong>NVD CVE 2.0</strong> — National Vulnerability Database (CVSS v3, CPEs, descripciones).</li>
-        <li><strong>FIRST EPSS</strong> — Modelo probabilístico de estimación de exploit a 30 días.</li>
-        <li><strong>GitHub Security Advisories (GHSA)</strong> — Advisories curados por la comunidad y referencias a PoC.</li>
-        <li><strong>Microsoft MSRC</strong> — Actualizaciones de seguridad oficiales de la infraestructura Microsoft.</li>
+        <li><strong>CISA KEV</strong> — Catalog of vulnerabilities with confirmed exploitation in the wild.</li>
+        <li><strong>NVD CVE 2.0</strong> — National Vulnerability Database (CVSS v3, CPEs, descriptions).</li>
+        <li><strong>FIRST EPSS</strong> — Probabilistic model estimating 30-day exploit likelihood.</li>
+        <li><strong>GitHub Security Advisories (GHSA)</strong> — Community-curated advisories and PoC references.</li>
+        <li><strong>Microsoft MSRC</strong> — Official security updates for the Microsoft infrastructure.</li>
       </ul>
 
-      <h2>Fórmula de Scoring Determinística (0–100)</h2>
-      <p>Sin depender de alucinaciones de modelos LLM para la asignación de puntajes. El cálculo combina:</p>
+      <h2>Deterministic Scoring Formula (0–100)</h2>
+      <p>No dependence on LLM hallucinations for score assignment. The calculation combines:</p>
       <ul>
-        <li><strong>30 pts</strong> × Presencia en CISA KEV</li>
-        <li><strong>25 pts</strong> × Percentil EPSS ≥ 99%</li>
+        <li><strong>30 pts</strong> × Presence in CISA KEV</li>
+        <li><strong>25 pts</strong> × EPSS percentile ≥ 99%</li>
         <li><strong>15 pts</strong> × EPSS Score ≥ 50%</li>
-        <li><strong>12 pts</strong> × CVSS v3 proporcional (/10)</li>
-        <li><strong>8 pts</strong> × Evidencia de exploit (Confirmado / PoC / Probable)</li>
-        <li><strong>5 pts</strong> × Recencia de la vulnerabilidad (&lt;7d / &lt;30d / &lt;90d)</li>
-        <li><strong>3 pts</strong> × Corroboración de múltiples fuentes</li>
-        <li><strong>2 pts</strong> × Vendor de alta exposición en infraestructura</li>
+        <li><strong>12 pts</strong> × CVSS v3 proportional (/10)</li>
+        <li><strong>8 pts</strong> × Exploit evidence (Confirmed / PoC / Likely)</li>
+        <li><strong>5 pts</strong> × Vulnerability recency (&lt;7d / &lt;30d / &lt;90d)</li>
+        <li><strong>3 pts</strong> × Multi-source corroboration</li>
+        <li><strong>2 pts</strong> × High-exposure vendor in infrastructure</li>
       </ul>
 
-      <h2>Garantía de Transparencia y Privacidad</h2>
+      <h2>Transparency and Privacy Guarantee</h2>
       <p>
-        🔒 <strong>100% Inteligencia Pública</strong>. Aislado de cualquier red corporativa o SOC privado. No realiza scraping de infraestructura interna ni contiene IoCs confidenciales. Diseñado como portfolio profesional de Blue Team / Cyber Threat Intelligence.
+        🔒 <strong>100% Public Intelligence</strong>. Isolated from any corporate network or private SOC. It does not scrape internal infrastructure or contain confidential IoCs. Designed as a professional Blue Team / Cyber Threat Intelligence portfolio.
       </p>
     </section>
   </main>

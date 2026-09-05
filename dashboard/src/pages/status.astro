@@ -8,14 +8,14 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
 <Base title="Sentinel-Bench — System Status" active="status">
   <main class="sources-page-wrap">
     <div class="sources-header">
-      <h1>Estado del Sistema</h1>
-      <p style="color:var(--muted);margin:0;font-size:14px">Monitoreo de estado operativo, salud de base de datos Supabase e ingesta automatizada de feeds.</p>
+      <h1>System Status</h1>
+      <p style="color:var(--muted);margin:0;font-size:14px">Operational status monitoring, Supabase database health, and automated feed ingestion.</p>
     </div>
 
     <div class="stats-grid" style="margin-bottom:28px">
       <div class="stat-box">
         <div class="stat-num" style="color:#10b981">99.9%</div>
-        <div class="stat-lbl">Uptime Ingesta</div>
+        <div class="stat-lbl">Ingest Uptime</div>
       </div>
       <div class="stat-box">
         <div class="stat-num" id="status-db-ping" style="color:#60a5fa">OK</div>
@@ -23,7 +23,7 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
       </div>
       <div class="stat-box">
         <div class="stat-num" id="status-total-vulns">—</div>
-        <div class="stat-lbl">Total Registros</div>
+        <div class="stat-lbl">Total Records</div>
       </div>
       <div class="stat-box">
         <div class="stat-num" style="color:#10b981">Active</div>
@@ -32,7 +32,7 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
     </div>
 
     <div id="status-services" class="sources-grid">
-      <div style="color:var(--muted);grid-column:1/-1">Comprobando estado de servicios…</div>
+      <div style="color:var(--muted);grid-column:1/-1">Checking service status…</div>
     </div>
   </main>
 
@@ -41,7 +41,7 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
     import { sb } from '../lib/sb';
 
     if (!sb) {
-      document.getElementById('status-services').innerHTML = '<div style="color:var(--act-now)">Variables de entorno no configuradas.</div>';
+      document.getElementById('status-services').innerHTML = '<div style="color:var(--act-now)">Environment variables not configured.</div>';
     } else {
       Promise.all([
         sb.from('sources').select('name,slug,kind,enabled'),
