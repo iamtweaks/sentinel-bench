@@ -130,4 +130,20 @@ Ver `docs/RUNBOOK.md` para detalles y troubleshooting.
 MIT. Hecho para portfolio Blue Team. Si encontrás algo que pueda ser sensible
 (infra corporativa, IoCs privados, datos laborales), abrí un issue o contactame
 directamente.
+
+## Donations / Sponsors
+
+If Sentinel-Bench saved you time on a triage or a Tuesday patch, you can
+chip in via Bitcoin (segwit, mainnet):
+
+```
+bc1q d2rpqfv glkzzce5 j7ryey4k 9c9sfefd wf9juax
+```
+
+Full address: `bc1qd2rpqfvglkzzce5j7ryey4k9c9sfefdwf9juax`
+
+⚠️ The address above is a BloFin exchange deposit address (custodial),
+**not** a personal non-custodial wallet. Funds land in a BloFin pooled
+account under my user account. Verify the address matches exactly
+before sending — on-chain transactions are irreversible.
 <!-- branch: feat/sentinel-bench-mvp | last commit on this branch differs from main -->
