@@ -1,5 +1,6 @@
 ---
 import { ClientRouter } from 'astro:transitions';
+import Analytics from '@vercel/analytics/astro';
 import '../styles/global.css';
 
 interface Props {
@@ -119,6 +120,10 @@ const { title = 'Sentinel-Bench — CTI Vulnerability Feed', active = 'feed', hi
   <slot />
 
   <footer style="border-top: 1px solid var(--border); padding: 24px; color: var(--muted); text-align: center; font-size: 12px; margin-top: 40px; position:relative; z-index:10;">
+    <div style="margin-bottom: 12px;">
+      <div style="font-weight: 600; color: var(--fg); margin-bottom: 4px;">Donations (SOL Mainnet)</div>
+      <code style="font-family: var(--font-mono, ui-monospace, Menlo, monospace); font-size: 11px; word-break: break-all;">8ZNN5bomP4SVfDthfcFgXBSoZAgtngZAcKscddhoPrGA</code>
+    </div>
     <small>Sentinel-Bench · CTI Intelligence Abierta · CISA KEV · NVD · EPSS · GHSA · MSRC · <a href="https://github.com/iamtweaks/sentinel-bench" rel="noopener" target="_blank" style="color:var(--accent-light)">GitHub Repo</a></small>
   </footer>
 
@@ -139,5 +144,6 @@ const { title = 'Sentinel-Bench — CTI Vulnerability Feed', active = 'feed', hi
     bindThemeToggle();
     document.addEventListener('astro:page-load', bindThemeToggle);
   </script>
+  <Analytics />
 </body>
 </html>
