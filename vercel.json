@@ -1,5 +1,14 @@
 {
   "version": 2,
   "buildCommand": "cd dashboard && npm install --silent && npx astro build",
-  "outputDirectory": "dashboard/dist"
+  "outputDirectory": "dashboard/dist",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "https://sentinel-bench.vercel.app" },
+        { "key": "Vary", "value": "Origin" }
+      ]
+    }
+  ]
 }
