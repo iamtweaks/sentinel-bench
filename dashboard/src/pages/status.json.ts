@@ -76,7 +76,7 @@ export const GET: APIRoute = async () => {
         status: 200,
         headers: {
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Origin': 'https://sentinel-bench.vercel.app',
           'Cache-Control': 'public, max-age=60, s-maxage=60',
         },
       }
