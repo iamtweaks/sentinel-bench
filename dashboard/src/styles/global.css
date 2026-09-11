@@ -628,6 +628,12 @@ main.feed-layout {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+/* ponytail: drawer reuses the badge class but its parent isn't relative — override absolute placement there. */
+.side-drawer .card-urgency-badge {
+  position: static;
+  top: auto;
+  right: auto;
+}
 .card-urgency-badge.act { color: var(--act-now); background: var(--act-now-bg); border: 1px solid var(--act-now-border); }
 .card-urgency-badge.plan { color: var(--plan-patch); background: var(--plan-patch-bg); border: 1px solid var(--plan-patch-border); }
 .card-urgency-badge.mon { color: var(--monitor); background: var(--monitor-bg); border: 1px solid var(--monitor-border); }
