@@ -14,8 +14,8 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
 
     <div class="stats-grid" style="margin-bottom:28px">
       <div class="stat-box">
-        <div class="stat-num" style="color:#10b981">99.9%</div>
-        <div class="stat-lbl">Ingest Uptime</div>
+        <div class="stat-num" id="status-uptime">—</div>
+        <div class="stat-lbl">Ingest Uptime (30d)</div>
       </div>
       <div class="stat-box">
         <div class="stat-num" id="status-db-ping" style="color:#60a5fa">OK</div>
@@ -45,10 +45,22 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
     } else {
       Promise.all([
         sb.from('sources').select('name,slug,kind,enabled'),
-        sb.from('risk_scores').select('cve_id', { count: 'exact', head: true })
-      ]).then(([sourcesRes, countRes]) => {
+        sb.from('risk_scores').select('cve_id', { count: 'exact', head: true }),
+        sb.from('delivery_runs').select('started_at, sources_ok, sources_attempted').order('started_at', { ascending: false }).limit(200),
+      ]).then(([sourcesRes, countRes, runsRes]) => {
         if (countRes.count != null) {
           document.getElementById('status-total-vulns').textContent = countRes.count.toLocaleString();
+        }
+
+        // Compute 30d uptime from delivery_runs: % of runs where all attempted sources succeeded.
+        const runs = runsRes.data || [];
+        const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+        const recent = runs.filter(r => r.started_at && new Date(r.started_at).getTime() > cutoff);
+        const ok = recent.filter(r => (r.sources_ok || 0) === (r.sources_attempted || 0) && (r.sources_attempted || 0) > 0).length;
+        if (recent.length > 0) {
+          const pct = ((ok / recent.length) * 100).toFixed(1);
+          const el = document.getElementById('status-uptime');
+          if (el) el.textContent = `${pct}%`;
         }
 
         const sources = sourcesRes.data || [];

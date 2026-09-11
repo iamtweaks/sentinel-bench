@@ -156,7 +156,7 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
         let vulns: any[] = [];
         if (cveIds.length) {
           const { data } = await sb.from('vulnerabilities')
-            .select('cve_id,cvss_v3_score,epss_score,is_kev,vendors,products,exploited_in_wild,poc_public,last_updated_at,description')
+            .select('cve_id,cvss_v3_score,epss_score,is_kev,vendors,products,exploited_in_wild,poc_public,poc_urls,refs,last_updated_at,description,remediation')
             .in('cve_id', cveIds);
           vulns = data || [];
         }
@@ -291,7 +291,10 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
         let filtered = applyFilters(state.rows);
         filtered = sortRows(filtered);
 
-        document.getElementById('feed-count').textContent = filtered.length.toLocaleString();
+        // ponytail: show "—" while data hasn't loaded yet so users don't read 0 as "nothing to worry about".
+        document.getElementById('feed-count').textContent = state.rows.length === 0
+          ? '—'
+          : filtered.length.toLocaleString();
 
         renderAllCardsOnly();
         renderActiveChips();
@@ -439,6 +442,8 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
 
         for (const r of filtered) {
           const v = r.vuln || {};
+          // ponytail: strip newlines from description so CSV stays single-row and Excel doesn't split rows.
+          const desc = (v.description || '').replace(/[\r\n]+/g, ' ').replace(/"/g, '""').slice(0, 300);
           const row = [
             `"${r.cve_id}"`,
             `"${r.domain || 'IT'}"`,
@@ -449,7 +454,7 @@ const SUPABASE_ANON_JSON = JSON.stringify(SUPABASE_ANON);
             v.exploited_in_wild ? 'Yes' : 'No',
             v.poc_public ? 'Yes' : 'No',
             `"${(v.vendors || []).join(';')}"`,
-            `"${(v.description || '').replace(/"/g, '""').slice(0, 300)}"`
+            `"${desc}"`
           ];
           csvRows.push(row.join(','));
         }

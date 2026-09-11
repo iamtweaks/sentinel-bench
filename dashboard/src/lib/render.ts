@@ -37,9 +37,9 @@ function firstVendor(v: any): string {
 }
 
 function relativeWhen(iso: string | null | undefined): string {
-  if (!iso) return 'Recent';
+  if (!iso) return '—';
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return 'Recent';
+  if (isNaN(d.getTime())) return '—';
   const diffSec = Math.floor((Date.now() - d.getTime()) / 1000);
   if (diffSec < 3600) return 'Just now';
   const hours = Math.floor(diffSec / 3600);
@@ -249,6 +249,39 @@ export function renderDetailPanel(container: HTMLElement, row: any | null, onClo
         ${v.poc_public ? '<span class="vendor-tag" style="color:#f59e0b">public poc available</span>' : ''}
         <span class="vendor-tag">network access required</span>
       </div>
+
+      <!-- RECOMMENDED PATCHING -->
+      ${v.remediation ? `
+      <div>
+        <div class="detail-section-label">RECOMMENDED PATCHING</div>
+        <div class="detail-summary-text">${escapeHtml(v.remediation)}</div>
+      </div>
+      ` : `
+      <div>
+        <div class="detail-section-label">RECOMMENDED PATCHING</div>
+        <div class="detail-summary-text" style="color:var(--muted);font-style:italic">No remediation info available yet. Check vendor advisories below.</div>
+      </div>
+      `}
+
+      <!-- PUBLIC POCS -->
+      ${Array.isArray(v.poc_urls) && v.poc_urls.length ? `
+      <div>
+        <div class="detail-section-label">PUBLIC PoCs</div>
+        <ul class="prereqs-list" style="list-style:none;padding:0;margin:0">
+          ${v.poc_urls.slice(0, 5).map((u: string) => `<li style="margin-bottom:4px"><a href="${escapeHtml(u)}" target="_blank" rel="noopener" style="color:var(--accent-light);font-size:12.5px;word-break:break-all">${escapeHtml(u.length > 80 ? u.slice(0, 77) + '…' : u)}</a></li>`).join('')}
+        </ul>
+      </div>
+      ` : ''}
+
+      <!-- OFFICIAL ADVISORIES (refs[]) -->
+      ${Array.isArray(v.refs) && v.refs.length ? `
+      <div>
+        <div class="detail-section-label">OFFICIAL ADVISORIES</div>
+        <ul class="prereqs-list" style="list-style:none;padding:0;margin:0">
+          ${v.refs.slice(0, 5).map((r: any) => `<li style="margin-bottom:4px"><a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" style="color:var(--accent-light);font-size:12.5px;word-break:break-all">${escapeHtml((r.source || 'ref').toUpperCase())} · ${escapeHtml(r.url.length > 70 ? r.url.slice(0, 67) + '…' : r.url)}</a></li>`).join('')}
+        </ul>
+      </div>
+      ` : ''}
     </div>
   `;
 
