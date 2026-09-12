@@ -1,6 +1,7 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "astro",
+  "version": 2,
+  "buildCommand": "cd dashboard && npm install --silent && npx astro build",
+  "outputDirectory": "dashboard/dist",
   "headers": [
     {
       "source": "/(.*)",
