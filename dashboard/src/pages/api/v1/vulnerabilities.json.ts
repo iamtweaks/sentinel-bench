@@ -17,6 +17,8 @@
 import type { APIRoute } from 'astro';
 import { createClient } from '@supabase/supabase-js';
 
+
+export const prerender = false;
 const CORS = 'https://sentinel-bench.vercel.app';
 
 // ponytail: one helper so the cache + CORS policy lives in one place.

@@ -9,6 +9,8 @@
 import type { APIRoute } from 'astro';
 import { createClient } from '@supabase/supabase-js';
 
+
+export const prerender = false;
 const CORS = 'https://sentinel-bench.vercel.app';
 
 export const GET: APIRoute = async () => {

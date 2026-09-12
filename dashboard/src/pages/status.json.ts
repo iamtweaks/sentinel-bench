@@ -1,6 +1,10 @@
 import type { APIRoute } from 'astro';
 import { createClient } from '@supabase/supabase-js';
 
+// Legacy endpoint (also served from /api/v1/status.json). Stay prerendered so
+// the original URL keeps working without a server roundtrip.
+export const prerender = true;
+
 export const GET: APIRoute = async () => {
   const url = import.meta.env.PUBLIC_SUPABASE_URL;
   const key = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;

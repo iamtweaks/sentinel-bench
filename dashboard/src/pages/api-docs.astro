@@ -1,5 +1,6 @@
 ---
 import Base from '../layouts/Base.astro';
+export const prerender = true;
 ---
 <Base title="Sentinel-Bench — Public API" active="about">
   <main class="api-docs-wrap">
@@ -51,20 +52,17 @@ import Base from '../layouts/Base.astro';
     </div>
 
     <div class="api-section">
-      <h2>Important note on <code>output: 'static'</code></h2>
+      <h2>Important note: live filtering is now active</h2>
       <p>
-        The dashboard is currently Astro static-exported. The JSON endpoints
-        (<code>/api/v1/*</code>) are <strong>prerendered at build time</strong>.
-        Query parameters are ignored at runtime — every call returns the same
-        snapshot generated during the last deploy.
+        The dashboard has moved from Astro static export to <code>output: 'server'</code>
+        with the Vercel adapter. HTML pages are still prerendered and CDN-cached.
+        The JSON endpoints under <code>/api/v1/</code> are serverless functions that
+        run on every request, so query parameters now work in real time.
       </p>
       <p>
-        Practical use today: pull the top-N highest-scored CVEs once and refresh
-        after each Vercel deploy (which happens after every cron ingest).
-      </p>
-      <p>
-        Live filtering will land when we move the dashboard to Astro SSR (the
-        code already supports it — just needs the Vercel adapter). Tracked.
+        Cache: 60s browser, 5min CDN edge, 10min stale-while-revalidate. Hit the
+        endpoint, walk the pages with <code>offset</code>, refresh after the next
+        cron ingest for fresh data.
       </p>
     </div>
 
