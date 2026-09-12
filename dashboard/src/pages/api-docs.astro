@@ -1,0 +1,174 @@
+---
+import Base from '../layouts/Base.astro';
+---
+<Base title="Sentinel-Bench — Public API" active="about">
+  <main class="api-docs-wrap">
+    <h1>Public API · v1</h1>
+    <p style="color:var(--muted)">
+      Read-only access to Sentinel-Bench vulnerability intelligence. All endpoints return JSON,
+      support CORS from <code>https://sentinel-bench.vercel.app</code>, and are CDN-cached.
+    </p>
+
+    <div class="api-section">
+      <h2>Base URL</h2>
+      <pre><code>https://sentinel-bench.vercel.app/api/v1</code></pre>
+      <p>Discovery document: <a href="/api/v1/index.json">/api/v1/index.json</a></p>
+    </div>
+
+    <div class="api-section">
+      <h2>GET <code>/vulnerabilities.json</code></h2>
+      <p>List scored vulnerabilities (IT domain), ordered by score descending.</p>
+      <p><strong>Query params</strong> (all optional):</p>
+      <ul>
+        <li><code>vendor</code> — substring match against vendors (e.g. <code>cisco</code>, <code>microsoft</code>)</li>
+        <li><code>kev=true</code> — only CISA Known Exploited Vulnerabilities</li>
+        <li><code>since=YYYY-MM-DD</code> — only score rows computed after this date</li>
+        <li><code>limit</code> — 1..500 (default 100)</li>
+        <li><code>offset</code> — pagination offset (default 0)</li>
+      </ul>
+      <p><strong>Example</strong>:</p>
+      <pre><code>curl 'https://sentinel-bench.vercel.app/api/v1/vulnerabilities.json?kev=true&limit=10'</code></pre>
+      <p><strong>Response shape</strong>:</p>
+      <pre><code set:html={`{
+  "data": [
+    { "cve_id": "CVE-2025-XXXXX", "score": 94.2, "is_kev": true, "vendors": ["..."], "cvss_v3_score": 9.8, "epss_score": 0.97, "description": "...", "remediation": "...", "last_updated_at": "...", "computed_at": "..." }
+  ],
+  "total": 1240,
+  "limit": 10,
+  "offset": 0,
+  "filters": { "vendor": null, "kev": true, "since": null },
+  "generated_at": "2026-09-11T..."
+}`} /></pre>
+    </div>
+
+    <div class="api-section">
+      <h2>GET <code>/vulnerabilities.json?cve=CVE-YYYY-NNNN</code></h2>
+      <p>Full detail for a single CVE including <code>refs[]</code>, <code>poc_urls[]</code>, and the latest <code>risk_score</code>.</p>
+      <p><strong>Example</strong>:</p>
+      <pre><code>curl 'https://sentinel-bench.vercel.app/api/v1/vulnerabilities.json?cve=CVE-2025-20352'</code></pre>
+      <p>404 with the following body when the CVE is not in the corpus:</p>
+      <pre><code set:html={`{ "error": "not_found", "cve": "..." }`} /></pre>
+    </div>
+
+    <div class="api-section">
+      <h2>Important note on <code>output: 'static'</code></h2>
+      <p>
+        The dashboard is currently Astro static-exported. The JSON endpoints
+        (<code>/api/v1/*</code>) are <strong>prerendered at build time</strong>.
+        Query parameters are ignored at runtime — every call returns the same
+        snapshot generated during the last deploy.
+      </p>
+      <p>
+        Practical use today: pull the top-N highest-scored CVEs once and refresh
+        after each Vercel deploy (which happens after every cron ingest).
+      </p>
+      <p>
+        Live filtering will land when we move the dashboard to Astro SSR (the
+        code already supports it — just needs the Vercel adapter). Tracked.
+      </p>
+    </div>
+
+    <div class="api-section">
+      <h2>GET <code>/advisories.json</code></h2>
+      <p>Raw advisories from the 16 ingested sources, IT and OT. Useful when you need the original advisory text, vendor URL, and severity from the source.</p>
+      <p><strong>Query params</strong>:</p>
+      <ul>
+        <li><code>domain</code> — <code>IT</code> or <code>OT</code></li>
+        <li><code>vendor</code> — substring match against vendors</li>
+        <li><code>since=YYYY-MM-DD</code> — only advisories published after this date</li>
+        <li><code>limit</code> / <code>offset</code> — pagination</li>
+      </ul>
+      <p><strong>Example</strong>:</p>
+      <pre><code>curl 'https://sentinel-bench.vercel.app/api/v1/advisories.json?domain=OT&vendor=siemens&limit=20'</code></pre>
+    </div>
+
+    <div class="api-section">
+      <h2>GET <code>/sources.json</code></h2>
+      <p>Catalog of the 16 public intelligence sources (CISA KEV, NVD, EPSS, GHSA, MSRC, ABB, Siemens, Rockwell, CERT@VDE, Fortinet, Cisco, Palo Alto, NVD ICS, CISA ICS, Moxa) with per-source health from the latest delivery_run.</p>
+      <p><strong>Example</strong>:</p>
+      <pre><code>curl 'https://sentinel-bench.vercel.app/api/v1/sources.json'</code></pre>
+    </div>
+
+    <div class="api-section">
+      <h2>GET <code>/status.json</code></h2>
+      <p>Operational health: source health summary, last delivery_run metadata, computed uptime (30d).</p>
+      <p><strong>Example</strong>:</p>
+      <pre><code>curl 'https://sentinel-bench.vercel.app/api/v1/status.json'</code></pre>
+      <p>Also still available at legacy <code>/status.json</code> for backwards compatibility.</p>
+    </div>
+
+    <div class="api-section">
+      <h2>Caching & rate limits</h2>
+      <p>No public rate limit yet. Responses are CDN-cached for 5 minutes at the edge with <code>stale-while-revalidate</code> for 10 minutes. Don't hammer; respect the cache.</p>
+    </div>
+
+    <div class="api-section">
+      <h2>CORS</h2>
+      <p>All endpoints return <code>Access-Control-Allow-Origin: https://sentinel-bench.vercel.app</code>. Browser callers from other origins will be blocked by the browser.</p>
+    </div>
+  </main>
+
+  <style>
+    .api-docs-wrap {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+      position: relative;
+      z-index: 10;
+    }
+    .api-docs-wrap h1 {
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: clamp(2rem, 4vw, 2.6rem);
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      color: var(--text);
+      margin: 0 0 12px;
+    }
+    .api-section {
+      margin-top: 36px;
+      padding-top: 28px;
+      border-top: 1px solid var(--border-2);
+    }
+    .api-section h2 {
+      font-family: var(--font-mono, ui-monospace, monospace);
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--accent);
+      margin: 0 0 12px;
+      letter-spacing: 0.02em;
+    }
+    .api-section h2 code {
+      color: var(--text);
+      font-size: 15px;
+    }
+    .api-section p, .api-section li {
+      font-size: 14px;
+      line-height: 1.65;
+      color: var(--text-dim);
+    }
+    .api-section ul { padding-left: 20px; }
+    .api-section code {
+      font-family: var(--font-mono, ui-monospace, monospace);
+      font-size: 12.5px;
+      color: var(--accent-light);
+      background: var(--panel-2);
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
+    .api-section pre {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      padding: 14px 16px;
+      border-radius: 4px;
+      overflow-x: auto;
+      margin: 12px 0;
+    }
+    .api-section pre code {
+      background: transparent;
+      padding: 0;
+      color: var(--text);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+  </style>
+</Base>
