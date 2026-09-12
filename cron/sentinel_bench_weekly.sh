@@ -4,7 +4,14 @@
 # No Telegram output — the dashboard is the only read path now.
 
 set -e
-cd /root/projects/sentinel-bench
+# ponytail: hermes-workspace moved to /root/hermes-workspace/projects in 2026-09.
+# Both paths kept for backwards compat — first one wins.
+for candidate in /root/hermes-workspace/projects/sentinel-bench /root/projects/sentinel-bench; do
+  if [ -d "$candidate" ]; then
+    cd "$candidate"
+    break
+  fi
+done
 
 # EPSS for known CVEs (only changes periodically)
 python3 -m ingest.ingest --source=EPSS --limit=2000 2>&1 | tail -3

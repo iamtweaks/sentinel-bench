@@ -4,7 +4,14 @@
 # Idempotent, silent if no change (no LLM call, no telegram message).
 
 set -e
-cd /root/projects/sentinel-bench
+# ponytail: hermes-workspace moved to /root/hermes-workspace/projects in 2026-09.
+# Both paths kept for backwards compat — first one wins.
+for candidate in /root/hermes-workspace/projects/sentinel-bench /root/projects/sentinel-bench; do
+  if [ -d "$candidate" ]; then
+    cd "$candidate"
+    break
+  fi
+done
 
 # Ingest last 24h of NVD (CVEs modified since yesterday)
 YESTERDAY=$(date -u -d 'yesterday' +%Y-%m-%d)
