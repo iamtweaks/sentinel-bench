@@ -1,5 +1,6 @@
 import { sb } from './sb';
 import { renderCircuitBoard } from './CircuitBoard';
+import { parseCvssVector, deriveFromScore, type CvssParseResult } from './cvss';
 
 export type Status = 'act' | 'plan' | 'mon' | 'risk';
 
@@ -103,189 +104,226 @@ export function renderFeedCards(container: HTMLElement, rows: any[], activeCveId
 
 export function renderDetailPanel(container: HTMLElement, row: any | null, onClose: () => void) {
   const closeBtnSvg = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`;
+  const shareIcon = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>`;
+  const linkIcon = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
 
   if (!row) {
     container.innerHTML = `
       <div class="drawer-header-bar">
-        <span style="font-weight:700;color:var(--muted)">Vulnerability Analysis</span>
-        <button class="drawer-close-btn" id="btn-close-drawer">${closeBtnSvg}</button>
+        <div class="drawer-header-top">
+          <div class="drawer-title-block">
+            <span class="drawer-cve-id">SENTINEL-BENCH</span>
+            <span class="drawer-title">Vulnerability Analysis</span>
+          </div>
+          <button class="drawer-close-btn" id="btn-close-drawer">${closeBtnSvg}</button>
+        </div>
       </div>
       <div class="drawer-body">
         <div class="detail-placeholder">Select a vulnerability from the feed to view its full analysis.</div>
       </div>
     `;
+    document.getElementById('btn-close-drawer')?.addEventListener('click', onClose);
     return;
   }
 
   const v = row.vuln || {};
   const status = statusFor(row.score, v.is_kev);
-  const cvss = v.cvss_v3_score != null ? v.cvss_v3_score.toFixed(1) : '7.5';
-  const epss = v.epss_score != null ? (v.epss_score * 100).toFixed(1) + '%' : '12.4%';
+  const statusName = statusLabel(status);
+  const statusPillClass = `pill-${status}`;
+  const cvss = v.cvss_v3_score != null ? v.cvss_v3_score.toFixed(1) : null;
+  const epss = v.epss_score != null ? (v.epss_score * 100).toFixed(1) + '%' : null;
   const vendor = firstVendor(v);
-  const desc = v.description || 'No detailed vulnerability information available.';
+  const desc = v.description || row.rationale || 'No detailed vulnerability information available.';
   const when = relativeWhen(v.last_updated_at || row.computed_at);
+  const fullDate = v.last_updated_at || row.computed_at
+    ? new Date(v.last_updated_at || row.computed_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+    : '—';
 
-  const attackVector = 'Network';
-  const authReq = (v.cvss_v3_score || 0) >= 8.5 ? 'None' : 'Low';
-  const complexity = (v.cvss_v3_score || 0) >= 9.0 ? 'Low' : 'Low';
-  const userInteraction = v.is_kev ? 'None needed' : 'Required';
+  // CVSS vector: prefer the real vector; if missing or unparseable, derive from score.
+  // ponytail: cvss_v3_vector isn't currently exposed by the API, so the derived fallback
+  // is the path that runs in production. The parser is wired and will activate as soon
+  // as the API starts returning the vector.
+  const cvssParsed: CvssParseResult = parseCvssVector(v.cvss_v3_vector);
+  const cvssMetrics = cvssParsed.valid
+    ? cvssParsed
+    : deriveFromScore(v.cvss_v3_score);
+  const attackVector = cvssParsed.attackVector ?? cvssMetrics.attackVector ?? '—';
+  const authRequired = cvssParsed.authRequired ?? cvssMetrics.authRequired ?? '—';
+  const complexity = cvssParsed.complexity ?? cvssMetrics.complexity ?? '—';
+  const userInteraction = cvssParsed.userInteraction ?? cvssMetrics.userInteraction ?? '—';
 
-  // White Outline SVG Icons
-  const globeIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>`;
-  const keyIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4.1a1 1 0 0 0-1.4 0l-2.1 2.1a1 1 0 0 0 0 1.3"/><circle cx="7.5" cy="16.5" r="4.5"/><path d="m10.7 13.3 5.3-5.3"/></svg>`;
-  const gearIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"/></svg>`;
-  const userIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+  // Icons (use currentColor so they theme with the drawer)
+  const globeIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>`;
+  const keyIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 5.3-5.3"/><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4.1a1 1 0 0 0-1.4 0l-2.1 2.1a1 1 0 0 0 0 1.3"/></svg>`;
+  const gearIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
+  const userIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
 
-  const alertIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
-  const usersIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
-  const targetIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>`;
+  // Helper for refs — adapts to either {url, source} or string-only inputs.
+  const refsList: Array<{ url: string; source?: string }> = Array.isArray(v.refs)
+    ? v.refs.map((r: any) => typeof r === 'string' ? { url: r } : { url: r.url, source: r.source })
+    : [];
+  const pocList: string[] = Array.isArray(v.poc_urls) ? v.poc_urls : [];
+
+  // Truncate description for "What could happen"
+  const whatCouldHappen = desc.length > 220 ? desc.slice(0, 217) + '…' : desc;
+
+  // Who's at risk: from vendors + products (hidden if empty per spec)
+  const vendorList: string[] = Array.isArray(v.vendors) && v.vendors.length ? v.vendors : [];
+  const productList: string[] = Array.isArray(v.products) && v.products.length ? v.products : [];
+  const atRiskParts: string[] = [];
+  if (vendorList.length) atRiskParts.push(...vendorList);
+  if (productList.length) atRiskParts.push(...productList);
+  const atRiskText = atRiskParts.join(', ');
+  const showAtRisk = atRiskParts.length > 0;
+
+  const shareUrl = typeof window !== 'undefined' ? window.location.origin + window.location.pathname + `?cve=${encodeURIComponent(row.cve_id)}` : '';
 
   container.innerHTML = `
     <div class="drawer-header-bar">
-      <div class="detail-meta-bar">
-        <span class="card-urgency-badge ${status}">${statusLabel(status)}</span>
-        <span style="font-size:12.5px;font-weight:700;color:var(--text-dim)">CVSS ${cvss}</span>
-        <span style="font-size:11.5px;color:var(--muted)">EPSS ${epss}</span>
+      <div class="drawer-header-top">
+        <div class="drawer-title-block">
+          <span class="drawer-cve-id">${escapeHtml(row.cve_id)}</span>
+          <span class="drawer-title">${escapeHtml(vendor)} — ${escapeHtml(truncate(v.description || row.rationale || 'Security Advisory', 80))}</span>
+        </div>
+        <div class="drawer-actions">
+          <button class="drawer-action-btn" id="btn-share-drawer" title="Copy link">${shareIcon} Share</button>
+          <button class="drawer-close-btn" id="btn-close-drawer" aria-label="Close drawer">${closeBtnSvg}</button>
+        </div>
       </div>
-      <button class="drawer-close-btn" id="btn-close-drawer">${closeBtnSvg}</button>
+
+      <!-- STATUS PILLS ROW: status + CVSS + advisory ID + date -->
+      <div class="drawer-pills">
+        <span class="drawer-pill ${statusPillClass}">${escapeHtml(statusName)}</span>
+        ${cvss ? `<span class="drawer-pill pill-neutral">CVSS ${escapeHtml(cvss)}</span>` : ''}
+        ${epss ? `<span class="drawer-pill pill-neutral">EPSS ${escapeHtml(epss)}</span>` : ''}
+        ${v.is_kev ? `<span class="drawer-pill pill-act">KEV</span>` : ''}
+        ${v.poc_public ? `<span class="drawer-pill pill-plan">PoC</span>` : ''}
+        <span class="drawer-pill pill-neutral">${escapeHtml(fullDate)}</span>
+      </div>
     </div>
 
     <div class="drawer-body">
-      <div class="detail-title">${escapeHtml(row.cve_id)} — ${escapeHtml(vendor)}</div>
-
-      <div class="card-tags">
-        <span class="vendor-tag" style="background:var(--accent-glow);color:var(--accent-light)">${escapeHtml(vendor)}</span>
-        <span class="vendor-tag">Critical Asset</span>
-        <span class="vendor-tag">Infrastructure</span>
-      </div>
-
-      <!-- ATTACK PATH GRAPHIC COMPONENT -->
-      <div class="attack-path-container">
-        <div class="attack-path-title">ATTACK PATH</div>
-        <div class="attack-path-flow">
-          <div class="attack-step">
-            <div class="step-icon">${globeIcon}</div>
-            <div class="step-label">VECTOR</div>
-            <div class="step-val">${attackVector}</div>
-          </div>
-          <div class="attack-step">
-            <div class="step-icon">${keyIcon}</div>
-            <div class="step-label">AUTH</div>
-            <div class="step-val">${authReq}</div>
-          </div>
-          <div class="attack-step">
-            <div class="step-icon">${gearIcon}</div>
-            <div class="step-label">COMPLEXITY</div>
-            <div class="step-val">${complexity}</div>
-          </div>
-          <div class="attack-step">
-            <div class="step-icon">${userIcon}</div>
-            <div class="step-label">INTERACTION</div>
-            <div class="step-val">${userInteraction}</div>
+      <!-- ATTACK PATH (CVSS-derived) -->
+      <div class="drawer-section">
+        <div class="drawer-section-label">Attack Path</div>
+        <div class="attack-path-container">
+          <div class="attack-path-flow">
+            <div class="attack-step">
+              <div class="step-icon">${globeIcon}</div>
+              <div class="step-label">Attack Vector</div>
+              <div class="step-val">${escapeHtml(attackVector)}</div>
+            </div>
+            <div class="attack-step">
+              <div class="step-icon">${keyIcon}</div>
+              <div class="step-label">Auth Required</div>
+              <div class="step-val">${escapeHtml(authRequired)}</div>
+            </div>
+            <div class="attack-step">
+              <div class="step-icon">${gearIcon}</div>
+              <div class="step-label">Complexity</div>
+              <div class="step-val">${escapeHtml(complexity)}</div>
+            </div>
+            <div class="attack-step">
+              <div class="step-icon">${userIcon}</div>
+              <div class="step-label">User Interaction</div>
+              <div class="step-val">${escapeHtml(userInteraction)}</div>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- CIRCUIT BOARD COMPONENT (Explaining How Vulnerabilities Work) -->
-      ${renderCircuitBoard([
-        { id: "start", x: 75, y: 140, label: "Cloud", type: "cloud", status: "Ingress / Entry" },
-        { id: "process", x: 250, y: 70, label: "Server", type: "server", status: "Vulnerable Service" },
-        { id: "validate", x: 250, y: 210, label: "Validate", type: "shield", status: "WAF / Policy Check" },
-        { id: "end", x: 425, y: 140, label: "Database", type: "database", status: "Target Asset" },
-      ], [
-        { from: "start", to: "process", animated: true },
-        { from: "start", to: "validate", animated: true },
-        { from: "process", to: "end", animated: true },
-        { from: "validate", to: "end", animated: true },
-      ], 500, 280)}
-
       <!-- SUMMARY -->
-      <div>
-        <div class="detail-section-label">SUMMARY</div>
+      <div class="drawer-section">
+        <div class="drawer-section-label">Summary</div>
         <div class="detail-summary-text">${escapeHtml(desc)}</div>
       </div>
 
       <!-- WHAT THIS MEANS -->
-      <div>
-        <div class="detail-section-label">WHAT THIS MEANS</div>
-        <div class="what-this-means-box">
+      <div class="drawer-section">
+        <div class="drawer-section-label">What This Means</div>
+        <div class="meaning-list">
           <div class="meaning-item">
-            <span class="m-icon">${alertIcon}</span>
             <div>
               <strong>What could happen</strong>
-              An attacker with access to the target network could execute arbitrary code or compromise the integrity of the affected asset.
+              ${escapeHtml(whatCouldHappen)}
             </div>
           </div>
+          ${showAtRisk ? `
           <div class="meaning-item">
-            <span class="m-icon">${usersIcon}</span>
             <div>
               <strong>Who's at risk</strong>
-              Entornos que despliegan componentes de ${escapeHtml(vendor)} expuestos a segmentos de red internos o perimetrales.
+              ${escapeHtml(atRiskText)}
             </div>
           </div>
-          <div class="meaning-item">
-            <span class="m-icon">${targetIcon}</span>
-            <div>
-              <strong>How it could be exploited</strong>
-              By sending crafted network requests to vulnerable listening ports. ${v.poc_public ? 'Public PoC code is available.' : ''}
-            </div>
-          </div>
+          ` : ''}
         </div>
       </div>
 
-      <!-- PREREQUISITES -->
-      <div>
-        <div class="detail-section-label">PREREQUISITES</div>
-        <ul class="prereqs-list">
-          <li>Acceso de red directo o por VPN al puerto expuesto.</li>
-          <li>Vulnerable software version without the patch applied.</li>
-          ${v.is_kev ? '<li>Active exploitation confirmed by CISA KEV.</li>' : ''}
-        </ul>
-      </div>
-
-      <!-- TECHNICAL TAGS -->
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
-        ${v.is_kev ? '<span class="vendor-tag" style="color:#60a5fa">actively exploited (KEV)</span>' : ''}
-        ${v.poc_public ? '<span class="vendor-tag" style="color:#f59e0b">public poc available</span>' : ''}
-        <span class="vendor-tag">network access required</span>
-      </div>
-
-      <!-- RECOMMENDED PATCHING -->
-      ${v.remediation ? `
-      <div>
-        <div class="detail-section-label">RECOMMENDED PATCHING</div>
-        <div class="detail-summary-text">${escapeHtml(v.remediation)}</div>
-      </div>
-      ` : `
-      <div>
-        <div class="detail-section-label">RECOMMENDED PATCHING</div>
-        <div class="detail-summary-text" style="color:var(--muted);font-style:italic">No remediation info available yet. Check vendor advisories below.</div>
-      </div>
-      `}
-
-      <!-- PUBLIC POCS -->
-      ${Array.isArray(v.poc_urls) && v.poc_urls.length ? `
-      <div>
-        <div class="detail-section-label">PUBLIC PoCs</div>
-        <ul class="prereqs-list" style="list-style:none;padding:0;margin:0">
-          ${v.poc_urls.slice(0, 5).map((u: string) => `<li style="margin-bottom:4px"><a href="${escapeHtml(u)}" target="_blank" rel="noopener" style="color:var(--accent-light);font-size:12.5px;word-break:break-all">${escapeHtml(u.length > 80 ? u.slice(0, 77) + '…' : u)}</a></li>`).join('')}
+      <!-- REFERENCES -->
+      ${refsList.length ? `
+      <div class="drawer-section">
+        <div class="drawer-section-label">References</div>
+        <ul class="refs-list">
+          ${refsList.slice(0, 8).map(r => `
+            <li>
+              <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener">
+                ${r.source ? `<span class="ref-source">${escapeHtml(r.source.toUpperCase())}</span>` : ''}
+                <span>${escapeHtml(r.url.length > 70 ? r.url.slice(0, 67) + '…' : r.url)}</span>
+              </a>
+            </li>
+          `).join('')}
         </ul>
       </div>
       ` : ''}
 
-      <!-- OFFICIAL ADVISORIES (refs[]) -->
-      ${Array.isArray(v.refs) && v.refs.length ? `
-      <div>
-        <div class="detail-section-label">OFFICIAL ADVISORIES</div>
-        <ul class="prereqs-list" style="list-style:none;padding:0;margin:0">
-          ${v.refs.slice(0, 5).map((r: any) => `<li style="margin-bottom:4px"><a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" style="color:var(--accent-light);font-size:12.5px;word-break:break-all">${escapeHtml((r.source || 'ref').toUpperCase())} · ${escapeHtml(r.url.length > 70 ? r.url.slice(0, 67) + '…' : r.url)}</a></li>`).join('')}
+      <!-- POC URLS -->
+      ${pocList.length ? `
+      <div class="drawer-section">
+        <div class="drawer-section-label">PoC URLs</div>
+        <ul class="refs-list">
+          ${pocList.slice(0, 8).map(u => `
+            <li>
+              <a href="${escapeHtml(u)}" target="_blank" rel="noopener">
+                <span class="ref-source">${linkIcon}</span>
+                <span>${escapeHtml(u.length > 70 ? u.slice(0, 67) + '…' : u)}</span>
+              </a>
+            </li>
+          `).join('')}
         </ul>
       </div>
       ` : ''}
+
+      <!-- REMEDIATION -->
+      <div class="drawer-section">
+        <div class="drawer-section-label">Remediation</div>
+        ${v.remediation ? `
+          <div class="remediation-text">${escapeHtml(v.remediation)}</div>
+        ` : `
+          <div class="detail-summary-text" style="color:var(--text-dim);font-style:italic">No remediation info available. Check vendor advisories above.</div>
+        `}
+      </div>
+
+      <div style="font-size:10.5px;color:var(--text-dim);font-family:var(--font-mono);text-align:right;margin-top:auto">
+        Updated ${escapeHtml(when)}
+      </div>
     </div>
   `;
 
   document.getElementById('btn-close-drawer')?.addEventListener('click', onClose);
+  const shareBtn = document.getElementById('btn-share-drawer');
+  if (shareBtn) {
+    shareBtn.addEventListener('click', async () => {
+      try {
+        if (navigator.clipboard && shareUrl) {
+          await navigator.clipboard.writeText(shareUrl);
+          shareBtn.textContent = '✓ Copied';
+          setTimeout(() => { shareBtn.innerHTML = `${shareIcon} Share`; }, 1500);
+        }
+      } catch {
+        // ponytail: clipboard blocked — fail silently; user can copy from URL bar.
+      }
+    });
+  }
 }
 
 export function renderVendorSidebar(container: HTMLElement, vendorCounts: Record<string, number>, selectedVendors: Set<string>, onToggle: (vendor: string) => void) {
