@@ -24,7 +24,10 @@ function jsonHeaders(status = 200): HeadersInit {
   return {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': CORS,
-    'Cache-Control': 'public, max-age=60, s-maxage=300, stale-while-revalidate=600',
+    // ponytail: drop s-maxage — Vercel keys SSR cache by path, ignoring query
+    // string. Aggressive s-maxage means ?limit=N is frozen at first-request.
+    // max-age=60 still helps browsers; must-revalidate forces edge re-check.
+    'Cache-Control': 'public, max-age=60, must-revalidate',
   };
 }
 
