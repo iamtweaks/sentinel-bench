@@ -31,7 +31,14 @@ function jsonHeaders(status = 200): HeadersInit {
   };
 }
 
-export const GET: APIRoute = async ({ url }) => {
+export const GET: APIRoute = async ({ url, request }) => {
+  // DIAG: dump headers + url so we can see what Vercel forwards
+  const hdrs: Record<string, string> = {};
+  request.headers.forEach((v, k) => { hdrs[k] = v; });
+  return new Response(JSON.stringify({
+    diag: { url: url.toString(), search: url.search, hdrs, requestUrl: request.url },
+  }, null, 2), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': CORS } });
+  // (rest of function unchanged below)
   const sbUrl = import.meta.env.PUBLIC_SUPABASE_URL;
   const sbKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
 
