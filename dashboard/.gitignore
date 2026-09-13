@@ -2,3 +2,4 @@
 pnpm-workspace.yaml
 pnpm-lock.yaml
 bun.lock
+tests/holdout/

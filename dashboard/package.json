@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "preview": "astro preview"
+    "preview": "astro preview",
+    "test:holdout": "bash /root/.hermes/skills/devops/holdout-secret-tests/scripts/validate.sh ."
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
