@@ -28,6 +28,11 @@ function jsonHeaders(status = 200): HeadersInit {
     // string. Aggressive s-maxage means ?limit=N is frozen at first-request.
     // max-age=60 still helps browsers; must-revalidate forces edge re-check.
     'Cache-Control': 'public, max-age=60, must-revalidate',
+    // ponytail: Vercel's edge cache keys on path, not query string, so
+    // different ?limit=N values were colliding on the same cached entry.
+    // Vary: * forces per-request caching. Cost: no shared cache, but this
+    // endpoint already has per-query results so the hit ratio was 0.
+    'Vary': '*',
   };
 }
 
