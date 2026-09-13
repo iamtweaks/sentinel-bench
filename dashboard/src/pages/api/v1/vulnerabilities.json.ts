@@ -35,8 +35,16 @@ export const GET: APIRoute = async ({ url, request }) => {
   // DIAG: dump headers + url so we can see what Vercel forwards
   const hdrs: Record<string, string> = {};
   request.headers.forEach((v, k) => { hdrs[k] = v; });
+  const hdrsArr = Array.from(request.headers.entries());
   return new Response(JSON.stringify({
-    diag: { url: url.toString(), search: url.search, hdrs, requestUrl: request.url },
+    diag: {
+      url: url.toString(),
+      search: url.search,
+      requestUrl: request.url,
+      hdrs,
+      hdrsArr,
+      hdrKeys: Object.getOwnPropertyNames(request.headers),
+    },
   }, null, 2), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': CORS } });
   // (rest of function unchanged below)
   const sbUrl = import.meta.env.PUBLIC_SUPABASE_URL;
