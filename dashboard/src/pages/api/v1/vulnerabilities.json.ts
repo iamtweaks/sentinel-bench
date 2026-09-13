@@ -19,7 +19,12 @@ import { createClient } from '@supabase/supabase-js';
 
 const CORS = 'https://sentinel-bench.vercel.app';
 
-// ponytail: one helper so the cache + CORS policy lives in one place.
+// ponytail: output=static prerenders everything, including this API route,
+// which means url.searchParams is frozen at build time. ?limit=99999 never
+// reaches the handler and every query string returns the build-time result.
+// prerender=false forces SSR for this route; the rest of the site stays static.
+export const prerender = false;
+
 function jsonHeaders(status = 200): HeadersInit {
   return {
     'Content-Type': 'application/json',
