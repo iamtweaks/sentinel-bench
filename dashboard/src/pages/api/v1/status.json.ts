@@ -67,13 +67,15 @@ export const GET: APIRoute = async () => {
           id: latestRun.id,
           started_at: latestRun.started_at,
           finished_at: latestRun.finished_at,
-          status: latestRun.status,
+          // ponytail: status column doesn't exist on delivery_runs yet — derive
+          // from sources_ok vs sources_attempted. Migration 0001 has no 'status'.
+          status: (latestRun.sources_ok < latestRun.sources_attempted) ? 'partial' : 'success',
           sources_ok: latestRun.sources_ok,
           sources_attempted: latestRun.sources_attempted,
           advisories_new: latestRun.advisories_new,
           briefing_reason: latestRun.briefing_reason,
         } : null,
-        briefing_warning: latestRun?.status === 'partial'
+        briefing_warning: latestRun && (latestRun.sources_ok < latestRun.sources_attempted)
           ? 'Some sources failed in the last delivery run — see http_statuses for details.'
           : null,
         sources: sourceHealth,
