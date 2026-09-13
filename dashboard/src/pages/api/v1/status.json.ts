@@ -67,11 +67,15 @@ export const GET: APIRoute = async () => {
           id: latestRun.id,
           started_at: latestRun.started_at,
           finished_at: latestRun.finished_at,
+          status: latestRun.status,
           sources_ok: latestRun.sources_ok,
           sources_attempted: latestRun.sources_attempted,
           advisories_new: latestRun.advisories_new,
           briefing_reason: latestRun.briefing_reason,
         } : null,
+        briefing_warning: latestRun?.status === 'partial'
+          ? 'Some sources failed in the last delivery run — see http_statuses for details.'
+          : null,
         sources: sourceHealth,
       }, null, 2),
       {

@@ -102,7 +102,8 @@ export const GET: APIRoute = async ({ url }) => {
   const domain = (params.get('domain') || '').toUpperCase();
   const vendor = (params.get('vendor') || '').toLowerCase();
   const kevOnly = params.get('kev') === 'true';
-  const limit = Math.min(Math.max(parseInt(params.get('limit') || '100', 10) || 100, 1), 500);
+  const requestedLimit = parseInt(params.get('limit') || '100', 10) || 100;
+  const limit = Math.min(Math.max(requestedLimit, 1), 1000);
   const offset = Math.max(parseInt(params.get('offset') || '0', 10) || 0, 0);
   const since = params.get('since');
 
@@ -136,6 +137,8 @@ export const GET: APIRoute = async ({ url }) => {
         total: null,
         returned: 0,
         limit,
+        limit_requested: requestedLimit,
+        truncated: requestedLimit > 1000,
         offset,
         filters: { domain, vendor, kev: kevOnly, since },
         generated_at: new Date().toISOString(),
@@ -177,7 +180,7 @@ export const GET: APIRoute = async ({ url }) => {
     exploited_in_wild: vmap.get(r.cve_id)?.exploited_in_wild ?? false,
     poc_public: vmap.get(r.cve_id)?.poc_public ?? false,
     description: vmap.get(r.cve_id)?.description ?? null,
-    remediation: vmap.get(r.cve_id)?.remediation ?? null,
+    remediation: (() => { const _r = vmap.get(r.cve_id)?.remediation; return (_r && _r !== '') ? _r : 'No remediation available'; })(),
     last_updated_at: vmap.get(r.cve_id)?.last_updated_at ?? null,
     domain: 'IT', // OT entries come through /api/v1/advisories.json
   }));
@@ -191,6 +194,8 @@ export const GET: APIRoute = async ({ url }) => {
       total: null,
       returned: merged.length,
       limit,
+      limit_requested: requestedLimit,
+      truncated: requestedLimit > 1000,
       offset,
       filters: { domain, vendor, kev: kevOnly, since },
       generated_at: new Date().toISOString(),
