@@ -1,6 +1,7 @@
 {
   "version": 2,
-  "buildCommand": "cd dashboard && npm install --silent && npx astro build",
+  "buildCommand": "cd dashboard && npm install --silent && npx astro build && mkdir -p ../.vercel && rm -rf ../.vercel/output && cp -R .vercel/output ../.vercel/output",
+  "outputDirectory": ".vercel/output",
   "headers": [
     {
       "source": "/(.*)",
