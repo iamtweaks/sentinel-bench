@@ -1,8 +1,10 @@
 import { defineConfig } from "astro/config";
+import vercel from "@astrojs/vercel/serverless";
 import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
-  output: "static",
+  output: "server",
+  adapter: vercel(),
   site: "https://sentinel-bench.vercel.app",
   build: { format: "directory" },
   vite: {
