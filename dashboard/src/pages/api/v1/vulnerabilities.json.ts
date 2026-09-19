@@ -3,16 +3,21 @@
  *
  * Query params (all optional unless flagged):
  *   cve      = CVE-YYYY-NNNN            single-CVE detail (other filters ignored)
- *   domain   = IT | OT                  filter by domain
- *   vendor   = cisco|microsoft|...      filter by vendor (case-insensitive)
+ *   domain   = IT | OT                  filter by domain (OT served from advisories)
+ *   vendor   = cisco|microsoft|...      filter by vendor (case-insensitive substring)
  *   kev      = true                     only KEV entries
- *   limit    = 1..500 (default 100)     page size
+ *   limit    = 1..1000 (default 100)    page size
  *   offset   = 0..n (default 0)         pagination
  *   since    = ISO date                 only updated after this date
  *
  * Returns:
  *   - Single CVE: { cve_id, ..., risk_score, risk_factors, ..., generated_at }
- *   - List:       { data: Vulnerability[], total, limit, offset, filters, generated_at }
+ *   - List:       { data: Vulnerability[], returned, limit, offset, has_more,
+ *                   limit_requested, truncated, filters, generated_at }
+ *
+ * Pagination: `total` is intentionally omitted (free-tier PostgREST times out
+ * on count=exact for 4k+ rows). Callers page through `data` until `has_more`
+ * is false, incrementing `offset` by `limit` each time.
  */
 import type { APIRoute } from 'astro';
 import { createClient } from '@supabase/supabase-js';
@@ -114,15 +119,57 @@ export const GET: APIRoute = async ({ url }) => {
   const offset = Math.max(parseInt(params.get('offset') || '0', 10) || 0, 0);
   const since = params.get('since');
 
-  // Build the query against latest_risk_scores for ordering by computed priority.
+  // OT entries don't live in `vulnerabilities` — they only exist in
+  // `advisories` with domain='OT'. Direct callers there instead.
+  if (domain === 'OT') {
+    const { data: adv, error: advErr } = await sb
+      .from('advisories')
+      .select('id, source_id, title, summary, url, severity, published_at, vendors, products, cve_ids, domain')
+      .eq('domain', 'OT')
+      .order('published_at', { ascending: false, nullsFirst: false })
+      .range(offset, offset + limit - 1);
+    if (advErr) {
+      return new Response(JSON.stringify({ error: advErr.message }), {
+        status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': CORS },
+      });
+    }
+    const rows = (adv || []).filter((r: any) => {
+      if (vendor) {
+        const vs: string[] = r.vendors || [];
+        if (!vs.some((v) => String(v).toLowerCase().includes(vendor))) return false;
+      }
+      // KEV doesn't apply to advisories; only filter when explicitly asked.
+      return true;
+    });
+    return new Response(
+      JSON.stringify({
+        data: rows,
+        returned: rows.length,
+        limit,
+        limit_requested: requestedLimit,
+        truncated: requestedLimit > 1000,
+        has_more: rows.length === limit,
+        offset,
+        filters: { domain, vendor, kev: kevOnly, since },
+        generated_at: new Date().toISOString(),
+      }, null, 2),
+      { status: 200, headers: jsonHeaders() }
+    );
+  }
+
+  // IT path (or no domain). For IT we still hydrate from `vulnerabilities`;
+  // when domain=IT is explicit we keep only CVE rows whose vendors map back
+  // to a known IT advisory vendor set. Without that join table we fall back
+  // to the same set as no-domain (it's a near-superset today).
   // ponytail: skip count=exact — Supabase does a full sort to honor it and the
-  // free tier times out on 4000+ rows. We expose total only as "estimated: null,
-  // returned: N" and let callers paginate to discover the full count.
+  // free tier times out on 4000+ rows. has_more = we got a full page back.
+  // Ask for one extra row so has_more is exact without a count query.
+  const fetchLimit = limit + 1;
   let q = sb
     .from('latest_risk_scores')
     .select('cve_id, score, factors, rationale, computed_at')
     .order('score', { ascending: false })
-    .range(offset, offset + limit - 1);
+    .range(offset, offset + fetchLimit - 1);
 
   if (since) {
     q = q.gt('computed_at', since);
@@ -136,16 +183,19 @@ export const GET: APIRoute = async ({ url }) => {
     });
   }
 
-  const cveIds = (scores || []).map((r: any) => r.cve_id).filter(Boolean);
+  const allScores = scores || [];
+  const hasMoreScores = allScores.length > limit;
+  const scoreSlice = hasMoreScores ? allScores.slice(0, limit) : allScores;
+  const cveIds = scoreSlice.map((r: any) => r.cve_id).filter(Boolean);
   if (cveIds.length === 0) {
     return new Response(
       JSON.stringify({
         data: [],
-        total: null,
         returned: 0,
         limit,
         limit_requested: requestedLimit,
         truncated: requestedLimit > 1000,
+        has_more: hasMoreScores,
         offset,
         filters: { domain, vendor, kev: kevOnly, since },
         generated_at: new Date().toISOString(),
@@ -154,15 +204,13 @@ export const GET: APIRoute = async ({ url }) => {
     );
   }
 
-  // Hydrate with vulnerability details.
+  // Hydrate with vulnerability details. Push vendor filter to the DB with
+  // `cs` (case-sensitive contains) so the row count stays bounded.
   let vQ = sb
     .from('vulnerabilities')
     .select('cve_id,cvss_v3_score,epss_score,is_kev,vendors,products,exploited_in_wild,poc_public,last_updated_at,description,remediation')
     .in('cve_id', cveIds);
-
-  if (domain === 'IT' || domain === 'OT') {
-    vQ = vQ.contains('vendors', []); // placeholder, real filter below via join
-  }
+  if (vendor) vQ = vQ.contains('vendors', [vendor]);
   const { data: vulns, error: vErr } = await vQ;
   if (vErr) {
     return new Response(JSON.stringify({ error: vErr.message }), {
@@ -172,37 +220,51 @@ export const GET: APIRoute = async ({ url }) => {
   }
 
   const vmap = new Map<string, any>((vulns || []).map((v: any) => [v.cve_id, v]));
+  // Substring filter after the DB pushdown: vendors may live as
+  // "cisco-systems" while callers pass "cisco". Keeps the API permissive
+  // without a full table scan on unfiltered pages.
+  const vendorSubstr = vendor || null;
 
   // ponytail: filter+map inline; one pass keeps it cheap.
-  let merged = (scores || []).map((r: any) => ({
-    cve_id: r.cve_id,
-    score: r.score,
-    rationale: r.rationale,
-    computed_at: r.computed_at,
-    cvss_v3_score: vmap.get(r.cve_id)?.cvss_v3_score ?? null,
-    epss_score: vmap.get(r.cve_id)?.epss_score ?? null,
-    is_kev: vmap.get(r.cve_id)?.is_kev ?? false,
-    vendors: vmap.get(r.cve_id)?.vendors ?? [],
-    products: vmap.get(r.cve_id)?.products ?? [],
-    exploited_in_wild: vmap.get(r.cve_id)?.exploited_in_wild ?? false,
-    poc_public: vmap.get(r.cve_id)?.poc_public ?? false,
-    description: vmap.get(r.cve_id)?.description ?? null,
-    remediation: (() => { const _r = vmap.get(r.cve_id)?.remediation; return (_r && _r !== '') ? _r : 'No remediation available'; })(),
-    last_updated_at: vmap.get(r.cve_id)?.last_updated_at ?? null,
-    domain: 'IT', // OT entries come through /api/v1/advisories.json
-  }));
+  let merged = scoreSlice.map((r: any) => {
+    const v = vmap.get(r.cve_id);
+    if (vendorSubstr) {
+      const vs: string[] = v?.vendors || [];
+      if (!vs.some((vv: string) => String(vv).toLowerCase().includes(vendorSubstr))) return null;
+    }
+    return {
+      cve_id: r.cve_id,
+      score: r.score,
+      rationale: r.rationale,
+      computed_at: r.computed_at,
+      cvss_v3_score: v?.cvss_v3_score ?? null,
+      epss_score: v?.epss_score ?? null,
+      is_kev: v?.is_kev ?? false,
+      vendors: v?.vendors ?? [],
+      products: v?.products ?? [],
+      exploited_in_wild: v?.exploited_in_wild ?? false,
+      poc_public: v?.poc_public ?? false,
+      description: v?.description ?? null,
+      remediation: (() => { const _r = v?.remediation; return (_r && _r !== '') ? _r : 'No remediation available'; })(),
+      last_updated_at: v?.last_updated_at ?? null,
+      domain: 'IT',
+    };
+  }).filter(Boolean) as any[];
 
   if (kevOnly) merged = merged.filter((r) => r.is_kev);
-  if (vendor) merged = merged.filter((r) => r.vendors.some((v: string) => String(v).toLowerCase().includes(vendor)));
+  // After pushdown + substring, has_more is "scores page was full"; if
+  // vendor/KEV trimming removed rows on this page, the next page may still
+  // have results — keep has_more=true.
+  const hasMoreAfterFilter = hasMoreScores || merged.length === limit;
 
   return new Response(
     JSON.stringify({
       data: merged,
-      total: null,
       returned: merged.length,
       limit,
       limit_requested: requestedLimit,
       truncated: requestedLimit > 1000,
+      has_more: hasMoreAfterFilter,
       offset,
       filters: { domain, vendor, kev: kevOnly, since },
       generated_at: new Date().toISOString(),
