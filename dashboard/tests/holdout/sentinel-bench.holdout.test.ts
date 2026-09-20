@@ -145,6 +145,47 @@ async function holdoutC() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Holdout D — single-CVE detail shape.
+// /api/v1/vulnerabilities.json?cve=CVE-YYYY-NNNN MUST return the merged
+// vulnerability + risk_score envelope (not the list shape with `data[]`).
+// Pick the top-ranked CVE from the list endpoint to avoid hardcoding one.
+// ---------------------------------------------------------------------------
+
+async function holdoutD() {
+  console.log('\n--- Holdout D: single-CVE detail shape ---');
+  const list = await getJson('/api/v1/vulnerabilities.json?limit=1');
+  const cve = list?.data?.[0]?.cve_id;
+  check(
+    'D.0 list endpoint exposes at least one cve_id',
+    typeof cve === 'string' && /^CVE-\d{4}-\d{4,7}$/.test(cve),
+    `cve=${JSON.stringify(cve)}`,
+  );
+  if (!cve) return;
+  const detail = await getJson(`/api/v1/vulnerabilities.json?cve=${encodeURIComponent(cve)}`);
+  check(
+    'D.1 detail response echoes the requested cve_id',
+    detail?.cve_id === cve,
+    `got=${JSON.stringify(detail?.cve_id)}`,
+  );
+  check(
+    'D.2 detail response carries a risk_score field',
+    detail?.risk_score === null || typeof detail.risk_score === 'number',
+    `risk_score=${JSON.stringify(detail?.risk_score)}`,
+  );
+  check(
+    'D.3 detail response carries an ISO generated_at',
+    typeof detail?.generated_at === 'string' &&
+      !Number.isNaN(Date.parse(detail.generated_at)),
+    `generated_at=${JSON.stringify(detail?.generated_at)}`,
+  );
+  check(
+    'D.4 detail response does NOT use the list envelope (no `data` array)',
+    !Array.isArray(detail?.data),
+    `data=${JSON.stringify(detail?.data)}`,
+  );
+}
+
 (async () => {
   try {
     await holdoutA();
@@ -166,6 +207,13 @@ async function holdoutC() {
     failed++;
     failures.push(`Holdout C threw: ${e?.message ?? e}`);
     console.log(`✗ Holdout C threw: ${e?.message ?? e}`);
+  }
+  try {
+    await holdoutD();
+  } catch (e: any) {
+    failed++;
+    failures.push(`Holdout D threw: ${e?.message ?? e}`);
+    console.log(`✗ Holdout D threw: ${e?.message ?? e}`);
   }
 
   console.log(`\n${passed} passed, ${failed} failed`);
