@@ -16,11 +16,29 @@ export const GET: APIRoute = async () => {
 
   const supabase = createClient(url, key);
 
+  // Cheap DB liveness probe — head 1 row, 2s timeout.
+  const dbOkPromise = (async () => {
+    try {
+      const ctl = new AbortController();
+      const tid = setTimeout(() => ctl.abort(), 2000);
+      const res = await supabase
+        .from('vulnerabilities')
+        .select('cve_id', { count: 'estimated', head: true })
+        .limit(1)
+        .abortSignal(ctl.signal);
+      clearTimeout(tid);
+      return !res.error;
+    } catch {
+      return false;
+    }
+  })();
+
   try {
     const [srcRes, runsRes] = await Promise.all([
       supabase.from('sources').select('id, slug, name, kind, url, enabled, last_successful_fetch').order('slug'),
       supabase.from('delivery_runs').select('*').order('started_at', { ascending: false }).limit(1),
     ]);
+    const db_ok = await dbOkPromise;
 
     const sources = srcRes.data || [];
     const latestRun = runsRes.data?.[0] || null;
@@ -59,6 +77,7 @@ export const GET: APIRoute = async () => {
     return new Response(
       JSON.stringify({
         status: systemStatus,
+        db_ok,
         timestamp: new Date().toISOString(),
         sources_total: sources.length,
         sources_healthy: healthyCount,
